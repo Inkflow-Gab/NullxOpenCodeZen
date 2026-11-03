@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "channel": "v1",
+  "binaryPath": null,
+  "defaultModel": null,
+  "autoInstall": true,
+  "timezone": "Asia/Manila",
+  "historyLimit": 1000,
+  "budget": {
+    "runsPerDay": 30,
+    "sessionsPerDay": 10,
+    "warnAtPercent": 80
+  }
+}

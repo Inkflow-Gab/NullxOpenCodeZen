@@ -1,0 +1,48 @@
+{
+  "name": "nullx-opencode-zen",
+  "version": "0.1.0",
+  "description": "Local-first OpenCode companion CLI with managed installs, explicit model selection, daily launch budgets, and a private usage journal.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "nullx": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets/nullx-scythe.png",
+    "assets/mascot.txt",
+    "schema",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm test",
+    "dev": "node --import tsx src/cli.ts",
+    "prepare": "npm run build",
+    "pack:check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "opencode",
+    "cli",
+    "developer-tools",
+    "local-first",
+    "budget"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Inkflow-Gab/NullxOpenCodeZen.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
