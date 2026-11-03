@@ -16,6 +16,8 @@
     "assets/nullx-banner.png",
     "schema",
     "scripts/generate_banner.py",
+    "scripts/setup.sh",
+    "scripts/setup.ps1",
     "docs",
     "README.md",
     "LICENSE",
@@ -30,6 +32,7 @@
     "test": "node --import tsx --test test/*.test.ts",
     "check": "npm run typecheck && npm test",
     "dev": "node --import tsx src/cli.ts",
+    "setup": "node dist/cli.js setup",
     "prepare": "npm run build",
     "pack:check": "npm pack --dry-run"
   },

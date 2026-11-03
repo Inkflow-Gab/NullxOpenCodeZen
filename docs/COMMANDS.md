@@ -15,6 +15,33 @@ nullx help run
 
 `--no-animation` disables the TTY spinner/gradient animation. `NO_COLOR` or `--no-color` disables color. `NULLX_NO_ANIMATION=1` also disables animation. Non-TTY output uses plain progress lines.
 
+## Setup
+
+```bash
+nullx setup
+nullx setup --name nz
+nullx setup --force
+nullx setup --channel v2
+nullx setup --skip-opencode
+nullx setup --json
+```
+
+All-in-one setup: verifies Node 22+, writes config, installs a launcher, updates `PATH`, checks command resolution, and installs OpenCode. It prints ASCII art, a spinner, and a progress bar on TTYs; plain ordered lines otherwise.
+
+- `--name <command>`: install under a specific name instead of auto-selecting.
+- `--bin-dir <path>`: override the launcher directory.
+- `--force`: back up a foreign command that owns the name (`<name>.backup-<timestamp>`), then replace it.
+- `--channel v1|v2`: choose the OpenCode channel and persist it in config.
+- `--retries 0..5`: transient install retries; default 2.
+- `--repair`: force a clean managed reinstall.
+- `--skip-opencode`: launcher and config only.
+- `--no-path`: do not edit shell rc files.
+- `--json`: machine-readable result, with no progress output on stderr.
+
+**Collision behavior.** When the target name belongs to another program, setup with no `--name` picks the first free name from `nullx`, `nullx-zen`, `nullx-zen-2`, `nullx-zen-3` and reports the choice. An explicit `--name` that is taken exits `3` (`LAUNCHER_CONFLICT`) unless `--force` is given. Foreign commands are never overwritten silently.
+
+Bootstrap wrappers: `bash scripts/setup.sh` (Linux/macOS/Termux/proot) and `pwsh scripts/setup.ps1` (Windows) additionally install Node 22+ and clone the repository.
+
 ## Installation
 
 ```bash

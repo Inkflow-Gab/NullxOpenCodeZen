@@ -1,5 +1,50 @@
 # Setup
 
+## Fast path: all-in-one
+
+One copy-paste, animated, no `sudo`, and safe when another program already owns the `nullx` command.
+
+Ubuntu, Linux desktop, WSL, macOS, or proot Ubuntu:
+
+```bash
+git clone https://github.com/Inkflow-Gab/NullxOpenCodeZen.git "$HOME/NullxOpenCodeZen" 2>/dev/null; cd "$HOME/NullxOpenCodeZen" && bash scripts/setup.sh
+```
+
+Already cloned:
+
+```bash
+bash scripts/setup.sh
+```
+
+Windows PowerShell:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts/setup.ps1
+```
+
+Options:
+
+```bash
+bash scripts/setup.sh --name nz --channel v1
+```
+
+- `--name <command>`: install under a specific command name.
+- `--force`: back up a foreign command that owns the name, then replace it.
+- `--channel v1|v2`: choose the OpenCode channel.
+- `--skip-opencode`: install the launcher and config only.
+- `--no-animation` / `--no-color`: plain output for logs and CI.
+- `--dir <path>`: where to clone when run outside the repository.
+
+The equivalent CLI command, once built, is:
+
+```bash
+node dist/cli.js setup
+```
+
+If you hit `npm error EEXIST` from `npm link`, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+## Manual path: step by step
+
 Each step is a separate copy-paste block. Run them in order.
 
 - 📱 Android / Termux / proot Ubuntu: [MOBILE-PROOT.md](MOBILE-PROOT.md) — no `sudo` commands.
@@ -80,11 +125,13 @@ npm run check
 npm run build
 ```
 
-### 9. Link the command
+### 9. Install the command
 
 ```bash
-npm link
+node dist/cli.js setup --skip-opencode
 ```
+
+Prefer a plain launcher with no collision handling? `npm link` still works when the name is free, but it fails with `EEXIST` if another tool already provides `nullx`.
 
 If global linking is not writable, run the built entry point directly:
 
@@ -212,11 +259,13 @@ npm run check
 npm run build
 ```
 
-### 11. Link the command
+### 11. Install the command
 
 ```powershell
-npm link
+node dist/cli.js setup --skip-opencode
 ```
+
+Open a new PowerShell window so the user `PATH` update applies.
 
 If script execution policy blocks npm, use `npm.cmd` in place of `npm`, or adjust the policy for your user account according to your organization's setup.
 

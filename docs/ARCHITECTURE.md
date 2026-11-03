@@ -2,6 +2,13 @@
 
 Nullx is a TypeScript/Node.js 22 CLI with no runtime npm dependencies. It wraps the official OpenCode binary; it does not vendor or fork the upstream agent.
 
+## Modules added for setup
+
+- `src/core/launcher.ts` — renders and classifies command launchers (ours vs foreign), picks a free command name, backs up foreign commands on `--force`, and persists `PATH` idempotently (shell rc files on POSIX, user-scope registry on Windows). `findCommandConflict` walks `PATH` so `doctor` can explain shadowing.
+- `src/ui/progress.ts` — `SetupProgress`: ordered steps, spinner, gradient progress bar, elapsed timings, cursor cleanup, and plain/non-TTY/NO_COLOR fallbacks. All progress goes to stderr so `--json` stdout stays parseable.
+- `src/commands/setup.ts` — orchestrates environment → config → launcher → resolution → OpenCode, collects non-fatal warnings, and prints actionable next steps using the command name actually installed.
+- `scripts/setup.sh` / `scripts/setup.ps1` — bootstrap wrappers that install Node 22+, clone/update the repo, build, then delegate to `node dist/cli.js setup`.
+
 ## Layers
 
 ```text
