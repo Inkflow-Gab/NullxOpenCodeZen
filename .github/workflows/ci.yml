@@ -25,7 +25,9 @@ jobs:
       - run: npm ci
         env:
           npm_config_ignore_scripts: true
-      - run: npm run check
+      - run: npm run typecheck
+      - name: Test (with failure annotations)
+        run: node scripts/ci-test-report.mjs
       - run: npm run build
       - run: node dist/cli.js --version
       - run: node dist/cli.js --json paths
