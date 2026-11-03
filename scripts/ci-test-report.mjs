@@ -43,13 +43,15 @@ function escapeData(value) {
 }
 
 function consume(line) {
-  const notOk = /^not ok \d+ - (.*)$/.exec(line);
+  // Node nests subtest TAP under indentation; match at any depth so a failing
+  // assertion is reported, not just the top-level "test failed" wrapper.
+  const notOk = /^\s*not ok \d+ - (.*)$/.exec(line);
   if (notOk) {
-    current = { name: notOk[1], detail: [] };
+    current = { name: notOk[1].trim(), detail: [] };
     failures.push(current);
     return;
   }
-  if (/^(ok |# Subtest:|1\.\.\d+)/.test(line)) {
+  if (/^\s*(ok |# Subtest:|1\.\.\d+)/.test(line)) {
     current = null;
     return;
   }
@@ -76,7 +78,8 @@ child.stderr.on("data", (chunk) => process.stderr.write(chunk));
 child.on("close", (code) => {
   if (buffer) consume(buffer.replace(/\r$/, ""));
   if (isCi) {
-    for (const failure of failures.slice(0, 10)) {
+    const useful = failures.filter((f) => !/^test failed$/.test(f.name));
+    for (const failure of (useful.length > 0 ? useful : failures).slice(0, 10)) {
       const location = failure.location ? failure.location.replace(/^.*[/\\](test[/\\][^:]+):(\d+):(\d+)$/, "$1:$2") : "test";
       const [file, line] = String(location).split(/:(?=\d+$)/);
       const message = `${failure.name} — ${failure.detail.join(" ").slice(0, 700) || "see TAP output"}`;
