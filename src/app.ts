@@ -7,6 +7,7 @@ import { showHelp } from "./commands/help.js";
 import { historyCommand } from "./commands/history.js";
 import { installCommand } from "./commands/install.js";
 import { launchCommand } from "./commands/launch.js";
+import { mascotCommand } from "./commands/mascot.js";
 import { modelCommand } from "./commands/model.js";
 import { statusCommand } from "./commands/status.js";
 import { upstreamCommand } from "./commands/upstream.js";
@@ -44,6 +45,7 @@ export async function main(argv: readonly string[], overrides: Partial<AppContex
       const option = args.shift()!;
       if (option === "--json") json = true;
       else if (option === "--no-color") env.NO_COLOR = "1";
+      else if (option === "--no-animation") env.NULLX_NO_ANIMATION = "1";
       else if (option === "--help" || option === "-h") help = true;
       else if (option === "--version" || option === "-V") {
         ctx.stdout.write(`${VERSION}\n`);
@@ -71,6 +73,7 @@ export async function main(argv: readonly string[], overrides: Partial<AppContex
       case "history": return await historyCommand(ctx, rest, json);
       case "paths": return pathsCommand(ctx, rest, json);
       case "about": return await aboutCommand(ctx);
+      case "mascot": return await mascotCommand(ctx, rest);
       case "start": return await launchCommand(ctx, await loadConfig(ctx), "session", rest);
       case "run": return await launchCommand(ctx, await loadConfig(ctx), "run", rest);
       case "auth":

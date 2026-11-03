@@ -1,33 +1,88 @@
 # Setup
 
-## Ubuntu / Linux
+Each step is a separate copy-paste block. Run them in order.
 
-### 1. Install prerequisites
+- 📱 Android / Termux / proot Ubuntu: [MOBILE-PROOT.md](MOBILE-PROOT.md) — no `sudo` commands.
+- 🐧 Ubuntu / Linux desktop: below.
+- 🪟 Windows PowerShell: below.
+
+## Ubuntu / Linux desktop
+
+### 1. Update packages
 
 ```bash
 sudo apt update
-sudo apt install -y git nodejs npm
-node --version
-npm --version
 ```
 
-Node.js must be 22 or newer. If the distribution package is older:
+### 2. Install prerequisites
 
 ```bash
-sudo npm install --global n
-sudo n 22
-hash -r
+sudo apt install -y curl git ca-certificates xz-utils nodejs npm
+```
+
+### 3. Check Node
+
+```bash
 node --version
 ```
 
-### 2. Build Nullx
+Node.js must be 22 or newer. If it is older, install `n`:
+
+```bash
+sudo npm install -g n
+```
+
+Install Node 22:
+
+```bash
+sudo n 22
+```
+
+Refresh the shell:
+
+```bash
+hash -r
+```
+
+Verify again:
+
+```bash
+node --version
+```
+
+### 4. Clone Nullx
 
 ```bash
 git clone https://github.com/Inkflow-Gab/NullxOpenCodeZen.git
+```
+
+### 5. Enter the project
+
+```bash
 cd NullxOpenCodeZen
+```
+
+### 6. Install locked dependencies
+
+```bash
 npm ci
+```
+
+### 7. Run checks
+
+```bash
 npm run check
+```
+
+### 8. Build
+
+```bash
 npm run build
+```
+
+### 9. Link the command
+
+```bash
 npm link
 ```
 
@@ -37,79 +92,191 @@ If global linking is not writable, run the built entry point directly:
 node dist/cli.js --help
 ```
 
-### 3. Install and authenticate OpenCode
+### 10. Preview the OpenCode install plan
 
 ```bash
 nullx install --dry-run
+```
+
+### 11. Install OpenCode
+
+```bash
 nullx install
+```
+
+### 12. Authenticate
+
+```bash
 nullx auth login
+```
+
+### 13. List models
+
+```bash
 nullx models
 ```
 
-Choose a model printed by OpenCode:
+### 14. Set a default model
+
+Replace `provider/model` with an exact ID printed by OpenCode.
 
 ```bash
-nullx model set <provider/model>
-nullx doctor
+nullx model set provider/model
+```
+
+### 15. Run diagnostics
+
+```bash
+nullx doctor --verbose
+```
+
+### 16. Start
+
+```bash
 nullx start
 ```
 
-### 4. Set a local daily budget
+### 17. Set a local daily budget
 
 ```bash
 nullx budget set --runs 30 --sessions 10 --timezone Asia/Manila
+```
+
+### 18. Show the budget
+
+```bash
 nullx budget
 ```
 
 ## Windows PowerShell
 
-### 1. Install prerequisites
+### 1. Install Node.js LTS
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS -e
+```
+
+### 2. Install Git
+
+```powershell
 winget install --id Git.Git -e
 ```
 
-Close and reopen PowerShell, then verify:
+Close and reopen PowerShell.
+
+### 3. Verify Node
 
 ```powershell
 node --version
+```
+
+### 4. Verify npm
+
+```powershell
 npm --version
+```
+
+### 5. Verify Git
+
+```powershell
 git --version
 ```
 
-### 2. Build Nullx
+### 6. Clone Nullx
 
 ```powershell
 git clone https://github.com/Inkflow-Gab/NullxOpenCodeZen.git
+```
+
+### 7. Enter the project
+
+```powershell
 Set-Location NullxOpenCodeZen
+```
+
+### 8. Install locked dependencies
+
+```powershell
 npm ci
+```
+
+### 9. Run checks
+
+```powershell
 npm run check
+```
+
+### 10. Build
+
+```powershell
 npm run build
+```
+
+### 11. Link the command
+
+```powershell
 npm link
 ```
 
 If script execution policy blocks npm, use `npm.cmd` in place of `npm`, or adjust the policy for your user account according to your organization's setup.
 
-### 3. Install and authenticate OpenCode
+### 12. Preview the OpenCode install plan
 
 ```powershell
 nullx install --dry-run
+```
+
+### 13. Install OpenCode
+
+```powershell
 nullx install
+```
+
+### 14. Authenticate
+
+```powershell
 nullx auth login
+```
+
+### 15. List models
+
+```powershell
 nullx models
-nullx model set "<provider/model>"
-nullx doctor
+```
+
+### 16. Set a default model
+
+```powershell
+nullx model set "provider/model"
+```
+
+### 17. Run diagnostics
+
+```powershell
+nullx doctor --verbose
+```
+
+### 18. Start
+
+```powershell
 nullx start
 ```
 
 ## Isolated test installation
 
-Use a separate wrapper home to avoid touching your normal config or journal:
+Use a separate wrapper home to avoid touching your normal config or journal.
+
+Linux/macOS:
 
 ```bash
 NULLX_HOME=/tmp/nullx-demo nullx install --dry-run
+```
+
+```bash
 NULLX_HOME=/tmp/nullx-demo nullx config init
+```
+
+```bash
 NULLX_HOME=/tmp/nullx-demo nullx status
 ```
 
@@ -117,9 +284,21 @@ PowerShell:
 
 ```powershell
 $env:NULLX_HOME = "$env:TEMP\nullx-demo"
+```
+
+```powershell
 nullx install --dry-run
+```
+
+```powershell
 nullx config init
+```
+
+```powershell
 nullx status
+```
+
+```powershell
 Remove-Item Env:NULLX_HOME
 ```
 
@@ -127,12 +306,19 @@ Remove-Item Env:NULLX_HOME
 
 Nullx checks `NULLX_OPENCODE_BINARY`, then the config's `binaryPath`, then its managed receipt, then `PATH`.
 
+Point Nullx at an existing native binary:
+
 ```bash
 nullx config set binary /absolute/path/to/opencode
-nullx doctor
 ```
 
-To return to automatic discovery:
+Run diagnostics:
+
+```bash
+nullx doctor --verbose
+```
+
+Return to automatic discovery:
 
 ```bash
 nullx config unset binary
@@ -140,10 +326,27 @@ nullx config unset binary
 
 ## Updating the wrapper
 
+Pull the latest changes:
+
 ```bash
 git pull --ff-only
+```
+
+Install locked dependencies:
+
+```bash
 npm ci
+```
+
+Run checks:
+
+```bash
 npm run check
+```
+
+Build:
+
+```bash
 npm run build
 ```
 

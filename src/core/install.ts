@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, realpath, rename, rm } from "node:fs/promises";
+import { access, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { detectOpenCode, probeVersion } from "./detect.js";
 import { AppError, EXIT, errorMessage } from "./errors.js";
@@ -12,11 +12,16 @@ import { isRecord, versionValue } from "./validation.js";
 
 export const REGISTRY = "https://registry.npmjs.org/";
 
+export type InstallProgress = (phase: string) => void;
+
 export interface InstallOptions {
   channel?: Channel;
   version?: string;
   force?: boolean;
   dryRun?: boolean;
+  repair?: boolean;
+  retries?: number;
+  progress?: InstallProgress;
 }
 
 export interface PackageMetadata {
@@ -45,6 +50,7 @@ export type InstallResult =
 interface InstallDependencies {
   fetchMetadata?: (url: string) => Promise<unknown>;
   npmCli?: string;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 async function fetchBoundedJson(url: string): Promise<unknown> {
@@ -154,6 +160,44 @@ function validateMetadata(raw: unknown, plan: InstallPlan): PackageMetadata {
   return { name: plan.packageName, version: plan.packageVersion, integrity, tarball };
 }
 
+async function cleanStaleInstallArtifacts(
+  ctx: AppContext,
+  channel: Channel,
+  version: string,
+  repair: boolean,
+  report: InstallProgress,
+): Promise<void> {
+  const module = ctx.platform === "win32" ? path.win32 : path.posix;
+  const target = installDirectory(ctx.paths, channel, version, ctx.platform);
+  const parent = module.dirname(target);
+  const base = module.basename(target);
+  let entries;
+  try {
+    entries = await readdir(parent, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const stale = entry.name.startsWith(`${base}.staging-`) || entry.name.startsWith(`${base}.previous-`);
+    if (!stale) continue;
+    const full = module.join(parent, entry.name);
+    try {
+      const info = await stat(full);
+      const ageMs = Date.now() - info.mtimeMs;
+      if (!repair && ageMs < 60 * 60 * 1000) continue;
+      await rm(full, { recursive: true, force: true });
+      report(`Removed stale install artifact: ${entry.name}`);
+    } catch {
+      // Cleanup is best-effort; a failed install must still surface its real error.
+    }
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function replaceDirectory(staging: string, target: string): Promise<void> {
   await ensurePrivateDirectory(path.dirname(target));
   let backup: string | undefined;
@@ -181,7 +225,16 @@ export async function installOpenCode(
 ): Promise<InstallResult> {
   const channel = options.channel ?? config.channel;
   const version = versionValue(options.version ?? RELEASES[channel].version);
-  const force = options.force ?? false;
+  const repair = options.repair ?? false;
+  const force = (options.force ?? false) || repair;
+  const report: InstallProgress = (phase) => {
+    try {
+      options.progress?.(phase);
+    } catch {
+      // Progress reporting must never break installation.
+    }
+  };
+  report("Checking for an existing OpenCode install");
   if (!force && !options.dryRun) {
     const existing = await detectOpenCode(ctx, config);
     if (existing && existing.channel === channel) return { status: "already-installed", binary: existing };
@@ -190,63 +243,89 @@ export async function installOpenCode(
   if (options.dryRun) return { status: "planned", plan: finalPlan };
 
   return withLock(ctx.paths.installLock, async () => {
-    const staging = `${finalPlan.targetDirectory}.staging-${randomUUID()}`;
-    const plan = buildPlan(ctx, channel, version, staging);
-    try {
-      const metadataUrl = `${REGISTRY}${encodeURIComponent(plan.packageName)}/${encodeURIComponent(plan.packageVersion)}`;
-      const raw = await (dependencies.fetchMetadata ?? fetchBoundedJson)(metadataUrl);
-      const metadata = validateMetadata(raw, plan);
-      await ensurePrivateDirectory(staging);
-      const npmCli = dependencies.npmCli ?? await findNpmCli(ctx);
-      const result = await ctx.exec(process.execPath, [npmCli, ...plan.npmArguments], {
-        cwd: ctx.cwd,
-        env: ctx.env,
-        timeoutMs: 600_000,
-        maxOutputBytes: 8 * 1_024 * 1_024,
-      });
-      if (result.exitCode !== 0) {
-        throw new AppError("INSTALL_FAILED", `npm install failed${result.timedOut ? " (timeout)" : ""}: ${(result.stderr || result.stdout || errorMessage(result.error)).trim().slice(0, 4_000)}`, EXIT.INSTALL);
-      }
-      const command = { file: packageBinaryPath(staging, channel, ctx.platform), source: "managed" as const };
-      let binary: DetectedBinary;
+    await cleanStaleInstallArtifacts(ctx, channel, version, repair, report);
+    const npmCli = dependencies.npmCli ?? await findNpmCli(ctx);
+    const retries = Math.max(0, Math.min(5, Math.floor(options.retries ?? 2)));
+    const attempts = retries + 1;
+    const metadataUrl = `${REGISTRY}${encodeURIComponent(finalPlan.packageName)}/${encodeURIComponent(finalPlan.packageVersion)}`;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const staging = `${finalPlan.targetDirectory}.staging-${randomUUID()}`;
+      const plan = buildPlan(ctx, channel, version, staging);
       try {
-        binary = await probeVersion(ctx, command);
+        report(`Fetching release metadata for ${plan.packageSpec} (attempt ${attempt}/${attempts})`);
+        const raw = await (dependencies.fetchMetadata ?? fetchBoundedJson)(metadataUrl);
+        const metadata = validateMetadata(raw, plan);
+        await ensurePrivateDirectory(staging);
+        report(`Installing ${plan.packageSpec} from the official npm registry`);
+        const result = await ctx.exec(process.execPath, [npmCli, ...plan.npmArguments], {
+          cwd: ctx.cwd,
+          env: ctx.env,
+          timeoutMs: 600_000,
+          maxOutputBytes: 8 * 1_024 * 1_024,
+        });
+        if (result.exitCode !== 0) {
+          throw new AppError("INSTALL_FAILED", `npm install failed${result.timedOut ? " (timeout)" : ""}: ${(result.stderr || result.stdout || errorMessage(result.error)).trim().slice(0, 4_000)}`, EXIT.INSTALL);
+        }
+        report("Verifying the staged OpenCode binary");
+        const command = { file: packageBinaryPath(staging, channel, ctx.platform), source: "managed" as const };
+        let binary: DetectedBinary;
+        try {
+          binary = await probeVersion(ctx, command);
+        } catch (error) {
+          throw new AppError("INSTALL_VERIFY_FAILED", `Installed binary failed verification: ${errorMessage(error)}`, EXIT.INSTALL);
+        }
+        if (binary.version !== version) {
+          throw new AppError("INSTALL_VERSION_MISMATCH", `Expected OpenCode ${version}, got ${binary.version}`, EXIT.INSTALL);
+        }
+        report("Activating the verified install");
+        await replaceDirectory(staging, finalPlan.targetDirectory);
+        const receipt: InstallReceipt = {
+          version: 1,
+          channel,
+          packageName: plan.packageName,
+          packageVersion: version,
+          binaryPath: finalPlan.binaryPath,
+          integrity: metadata.integrity,
+          installedAt: ctx.now().toISOString(),
+        };
+        report("Writing the install receipt");
+        await writeJsonAtomic(ctx.paths.receiptFile, receipt);
+        await saveConfig(ctx, { ...config, channel });
+        return { status: "installed", receipt, binary: { ...binary, file: finalPlan.binaryPath } };
       } catch (error) {
-        throw new AppError("INSTALL_VERIFY_FAILED", `Installed binary failed verification: ${errorMessage(error)}`, EXIT.INSTALL);
+        lastError = error;
+        const code = error instanceof AppError ? error.code : "";
+        const retryable = !["INTEGRITY_MISMATCH", "REGISTRY_METADATA_INVALID", "INSTALL_VERSION_MISMATCH", "NPM_NOT_FOUND"].includes(code);
+        if (attempt < attempts && retryable) {
+          report(`Install attempt ${attempt} failed; retrying after a short pause`);
+          await (dependencies.sleep ?? delay)(500 * attempt);
+          continue;
+        }
+        if (error instanceof AppError) throw error;
+        throw new AppError("INSTALL_FAILED", `OpenCode install failed: ${errorMessage(error)}`, EXIT.INSTALL);
+      } finally {
+        await rm(staging, { recursive: true, force: true }).catch(() => undefined);
       }
-      if (binary.version !== version) {
-        throw new AppError("INSTALL_VERSION_MISMATCH", `Expected OpenCode ${version}, got ${binary.version}`, EXIT.INSTALL);
-      }
-      await replaceDirectory(staging, finalPlan.targetDirectory);
-      const receipt: InstallReceipt = {
-        version: 1,
-        channel,
-        packageName: plan.packageName,
-        packageVersion: version,
-        binaryPath: finalPlan.binaryPath,
-        integrity: metadata.integrity,
-        installedAt: ctx.now().toISOString(),
-      };
-      await writeJsonAtomic(ctx.paths.receiptFile, receipt);
-      await saveConfig(ctx, { ...config, channel });
-      return { status: "installed", receipt, binary: { ...binary, file: finalPlan.binaryPath } };
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      throw new AppError("INSTALL_FAILED", `OpenCode install failed: ${errorMessage(error)}`, EXIT.INSTALL);
-    } finally {
-      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     }
+    throw lastError instanceof AppError ? lastError : new AppError("INSTALL_FAILED", `OpenCode install failed: ${errorMessage(lastError)}`, EXIT.INSTALL);
   }, { timeoutMs: 10_000, staleMs: 15 * 60_000 });
 }
 
-export async function ensureOpenCode(ctx: AppContext, config: NullxConfig): Promise<DetectedBinary> {
+export async function ensureOpenCode(ctx: AppContext, config: NullxConfig, progress?: InstallProgress): Promise<DetectedBinary> {
+  progress?.("Looking for an existing OpenCode binary");
   const existing = await detectOpenCode(ctx, config);
-  if (existing) return existing;
+  if (existing) {
+    progress?.(`Found OpenCode ${existing.version} (${existing.source})`);
+    return existing;
+  }
   if (!config.autoInstall || ctx.env.NULLX_NO_AUTO_INSTALL === "1") {
     throw new AppError("OPENCODE_NOT_FOUND", "OpenCode is not installed. Run nullx install, or set a binary with nullx config set binary <path>.", EXIT.NOT_FOUND);
   }
-  ctx.stderr.write(`OpenCode not found. Installing the pinned official ${config.channel} CLI from npm…\n`);
-  const result = await installOpenCode(ctx, config, { channel: config.channel });
+  const notify = progress ?? ((phase: string) => ctx.stderr.write(`${phase}\n`));
+  notify(`OpenCode not found. Installing the pinned official ${config.channel} CLI from npm…`);
+  const result = await installOpenCode(ctx, config, { channel: config.channel, ...(progress ? { progress } : {}) });
   if (result.status === "planned") throw new AppError("INSTALL_FAILED", "Unexpected dry-run during auto-install", EXIT.INSTALL);
   return result.binary;
 }

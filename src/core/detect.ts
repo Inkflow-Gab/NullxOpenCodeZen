@@ -1,10 +1,10 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { constants } from "node:fs";
-import { AppError, EXIT } from "./errors.js";
+import { AppError, EXIT, errorMessage } from "./errors.js";
 import { readJsonFile } from "./json.js";
 import { RELEASES } from "./paths.js";
-import type { AppContext, BinaryCommand, BinarySource, DetectedBinary, InstallReceipt, NullxConfig } from "./types.js";
+import type { AppContext, BinaryCommand, BinarySource, DetectedBinary, DetectionCandidate, DetectionReport, InstallReceipt, NullxConfig } from "./types.js";
 import { isRecord, stringValue } from "./validation.js";
 
 async function executable(file: string, platform: NodeJS.Platform): Promise<boolean> {
@@ -65,7 +65,8 @@ export async function readReceipt(ctx: AppContext): Promise<InstallReceipt | und
   const binaryPath = stringValue(raw.binaryPath, "receipt.binaryPath");
   const integrity = stringValue(raw.integrity, "receipt.integrity", 200);
   const installedAt = stringValue(raw.installedAt, "receipt.installedAt", 40);
-  if (packageName !== RELEASES[raw.channel].packageName || !path.isAbsolute(binaryPath)) {
+  const module = ctx.platform === "win32" ? path.win32 : path.posix;
+  if (packageName !== RELEASES[raw.channel].packageName || !module.isAbsolute(binaryPath)) {
     throw new AppError("RECEIPT_INVALID", "Install receipt does not describe an official managed binary", EXIT.INSTALL);
   }
   return { version: 1, channel: raw.channel, packageName, packageVersion, binaryPath, integrity, installedAt };
@@ -109,4 +110,69 @@ export async function detectOpenCode(ctx: AppContext, config: NullxConfig): Prom
     }
   }
   return null;
+}
+
+export async function inspectOpenCode(ctx: AppContext, config: NullxConfig): Promise<DetectionReport> {
+  const candidates: DetectionCandidate[] = [];
+  const warnings: string[] = [];
+  const state: { selected: DetectedBinary | null } = { selected: null };
+
+  const consider = async (command: BinaryCommand, reason: string): Promise<void> => {
+    try {
+      const probed = await probeVersion(ctx, command);
+      const isSelected = state.selected === null;
+      candidates.push({ ...probed, status: "ok", reason: isSelected ? reason : "lower precedence", selected: isSelected });
+      if (isSelected) state.selected = probed;
+    } catch (error) {
+      candidates.push({ file: command.file, source: command.source, status: "error", reason, detail: errorMessage(error) });
+    }
+  };
+
+  const environmental = ctx.env.NULLX_OPENCODE_BINARY?.trim();
+  if (environmental) {
+    const module = ctx.platform === "win32" ? path.win32 : path.posix;
+    try {
+      const command = await resolveExplicitBinary(module.resolve(ctx.cwd, environmental), "environment", ctx.platform);
+      await consider(command, "NULLX_OPENCODE_BINARY override");
+    } catch (error) {
+      candidates.push({ file: environmental, source: "environment", status: "error", reason: "NULLX_OPENCODE_BINARY override", detail: errorMessage(error) });
+    }
+    if (!state.selected) warnings.push("The explicit environment binary is broken; lower-precedence installs are not used while it is set.");
+  } else if (config.binaryPath) {
+    try {
+      const command = await resolveExplicitBinary(config.binaryPath, "config", ctx.platform);
+      await consider(command, "config binaryPath override");
+    } catch (error) {
+      candidates.push({ file: config.binaryPath, source: "config", status: "error", reason: "config binaryPath override", detail: errorMessage(error) });
+    }
+    if (!state.selected) warnings.push("The configured binary is broken; unset it with nullx config unset binary or repair the install.");
+  } else {
+    try {
+      const receipt = await readReceipt(ctx);
+      if (receipt) {
+        if (await executable(receipt.binaryPath, ctx.platform)) {
+          await consider({ file: receipt.binaryPath, source: "managed" }, "managed install receipt");
+        } else {
+          candidates.push({ file: receipt.binaryPath, source: "managed", status: "error", reason: "managed install receipt", detail: "Receipt points to a missing or non-executable file" });
+          warnings.push("The managed receipt is stale. Run nullx install --repair.");
+        }
+      }
+    } catch (error) {
+      warnings.push(`Managed receipt could not be read: ${errorMessage(error)}`);
+    }
+    const pathBinaries = await pathCandidates(ctx.env, ctx.platform);
+    for (const candidate of pathBinaries.slice(0, 16)) {
+      await consider(candidate, state.selected ? "PATH candidate" : "first working PATH candidate");
+    }
+    if (pathBinaries.length > 16) warnings.push(`Only the first 16 PATH candidates were inspected (${pathBinaries.length} found).`);
+  }
+
+  const working = candidates.filter((candidate) => candidate.status === "ok");
+  const channels = new Set(working.map((candidate) => candidate.channel).filter((channel) => channel === "v1" || channel === "v2"));
+  if (channels.size > 1) warnings.push("Both v1 and v2 OpenCode binaries are visible. Nullx keeps managed channels separate, but PATH order still matters.");
+  const selected = state.selected;
+  if (selected && selected.channel !== "unknown" && selected.channel !== config.channel) {
+    warnings.push(`Selected OpenCode ${selected.version} is ${selected.channel}, while the configured install channel is ${config.channel}.`);
+  }
+  return { selected, candidates, warnings };
 }

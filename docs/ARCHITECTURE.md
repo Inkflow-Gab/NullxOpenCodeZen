@@ -10,14 +10,17 @@ src/app.ts                 global flags and command dispatch
 src/commands/*             command adapters and terminal output
 src/core/config.ts         strict JSON config validation and atomic writes
 src/core/paths.ts          OS-specific storage and pinned release metadata
-src/core/detect.ts         binary precedence, PATH scan, native shim resolution, version probe
-src/core/install.ts        registry metadata checks, staged npm install, receipt
+src/core/detect.ts         binary precedence, PATH scan, native shim resolution, version probe, candidate report
+src/core/install.ts        registry metadata checks, staged npm install, retry/repair, receipt
+src/core/environment.ts    Ubuntu/Termux/proot-like/WSL heuristics and mobile hints
 src/core/process.ts        shell-free capture and inherited child processes
 src/core/budget.ts         reservation, rollover, reset, warning policy
 src/core/journal.ts        bounded JSONL validation, append, compaction
 src/core/lock.ts           cross-process local state lock
 src/core/clock.ts          IANA calendar days and DST-aware reset instant
-src/ui/terminal.ts         TTY-aware color and simple meters
+src/ui/terminal.ts         TTY-aware color, gradients, and simple meters
+src/ui/connection-animation.ts  stderr-only preparation animation with plain/NO_COLOR/CI fallbacks
+src/ui/banner.ts           large/compact ASCII mascot loading and color rendering
 src/utils/args.ts          wrapper flag parsing and passthrough boundaries
 ```
 
@@ -26,8 +29,11 @@ src/utils/args.ts          wrapper flag parsing and passthrough boundaries
 ```text
 parse command
   -> load and validate config
+  -> describe environment for proot/WSL/mobile hints
+  -> show stderr preparation animation on TTYs
   -> resolve OpenCode binary
-  -> optionally install pinned official release
+  -> optionally install pinned official release with progress/retry
+  -> stop animation before handing stdio to OpenCode
   -> inject default model when no explicit model flag exists
   -> acquire journal lock
   -> read journal and check local daily budget
@@ -45,11 +51,12 @@ The reservation happens before spawn because a started request may consume remot
 
 ```text
 select channel and exact version
-  -> reuse matching detected binary unless forced
+  -> reuse matching detected binary unless forced/repair
+  -> remove stale staging/previous artifacts when repairing
   -> fetch exact-version metadata from registry.npmjs.org
   -> validate package name, version, HTTPS tarball host, SHA-512 integrity
   -> compare default pins against reviewed integrity constants
-  -> npm install into a unique staging prefix
+  -> npm install into a unique staging prefix, retrying transient failures
   -> locate the native package binary
   -> run --version and compare the result
   -> atomically move staging into the versioned managed directory

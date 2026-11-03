@@ -43,6 +43,28 @@ test("budget reset requires explicit confirmation", async () => {
 test("about includes the mascot and upstream attribution", async () => {
   const ctx = await context();
   assert.equal(await main(["about"], ctx), 0);
-  assert.match(ctx.out.text, /NULLX/);
+  assert.match(ctx.out.text, /NULLX|N U L L X/);
   assert.match(ctx.out.text, /anomalyco\/opencode/);
+});
+
+test("mascot command supports large, compact, and plain output", async () => {
+  const ctx = await context();
+  assert.equal(await main(["mascot", "--large"], ctx), 0);
+  assert.match(ctx.out.text, /OPENCODE/);
+  ctx.out.text = "";
+  assert.equal(await main(["--no-color", "mascot", "--compact"], ctx), 0);
+  assert.doesNotMatch(ctx.out.text, /\x1b/);
+  assert.equal(await main(["mascot", "--large", "--compact"], ctx), 2);
+});
+
+test("doctor reports environment metadata and install validates retries", async () => {
+  const ctx = await context();
+  assert.equal(await main(["--json", "doctor"], ctx), 4);
+  const report = JSON.parse(ctx.out.text) as { environment: { platform: string }; checks: { name: string }[] };
+  assert.equal(report.environment.platform, process.platform);
+  assert.ok(report.checks.some((check) => check.name === "environment"));
+  ctx.out.text = "";
+  ctx.err.text = "";
+  assert.equal(await main(["install", "--retries", "9"], ctx), 3);
+  assert.match(ctx.err.text, /--retries/);
 });

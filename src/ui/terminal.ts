@@ -1,11 +1,18 @@
 import type { AppContext } from "../core/types.js";
+import { blend, colorMode } from "./connection-animation.js";
 
 export function colorEnabled(ctx: AppContext): boolean {
-  return Boolean(process.stdout.isTTY) && !ctx.env.NO_COLOR && ctx.env.TERM !== "dumb";
+  const tty = (ctx.stdout as { isTTY?: boolean }).isTTY === true;
+  return colorMode(ctx.env, tty) !== "none";
 }
 
 export function paint(ctx: AppContext, text: string, code: number): string {
   return colorEnabled(ctx) ? `\u001b[${code}m${text}\u001b[0m` : text;
+}
+
+export function gradient(ctx: AppContext, text: string): string {
+  const tty = (ctx.stdout as { isTTY?: boolean }).isTTY === true;
+  return blend(text, colorMode(ctx.env, tty));
 }
 
 export function writeLine(ctx: AppContext, text = ""): void {

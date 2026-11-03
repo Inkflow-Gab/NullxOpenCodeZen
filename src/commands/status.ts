@@ -1,10 +1,11 @@
 import { budgetSnapshot } from "../core/budget.js";
 import { loadConfig } from "../core/config.js";
 import { detectOpenCode } from "../core/detect.js";
+import { describeEnvironment, environmentLabel } from "../core/environment.js";
 import { readJournal } from "../core/journal.js";
 import type { AppContext, BudgetSnapshot } from "../core/types.js";
 import { parseFlags, rejectPositionals } from "../utils/args.js";
-import { meter, paint, writeJson, writeLine } from "../ui/terminal.js";
+import { gradient, meter, writeJson, writeLine } from "../ui/terminal.js";
 
 export function renderBudget(ctx: AppContext, snapshot: BudgetSnapshot): void {
   writeLine(ctx, `Local day ${snapshot.day} (${snapshot.timezone}); resets ${snapshot.resetsAt}`);
@@ -17,14 +18,16 @@ export async function statusCommand(ctx: AppContext, args: readonly string[], js
   const parsed = parseFlags(args, [{ names: ["--json"], takesValue: false }]);
   rejectPositionals(parsed);
   const config = await loadConfig(ctx);
+  const environment = await describeEnvironment({ env: ctx.env, platform: ctx.platform });
   const binary = await detectOpenCode(ctx, config);
   const snapshot = await budgetSnapshot(ctx, config);
   const recent = (await readJournal(ctx.paths)).slice(-5);
   if (json || parsed.flags.has("--json")) {
-    writeJson(ctx, { config, binary, budget: snapshot, recent });
+    writeJson(ctx, { config, environment, binary, budget: snapshot, recent });
     return 0;
   }
-  writeLine(ctx, paint(ctx, "Nullx OpenCode Zen", 35));
+  writeLine(ctx, gradient(ctx, "Nullx OpenCode Zen"));
+  writeLine(ctx, `Environment: ${environmentLabel(environment)}`);
   writeLine(ctx, binary ? `OpenCode ${binary.version} · ${binary.source} · ${binary.file}` : "OpenCode: not installed (nullx install)");
   writeLine(ctx, `Default model: ${config.defaultModel ?? "OpenCode's own selection"}`);
   writeLine(ctx, `Install channel: ${config.channel}; auto-install: ${config.autoInstall ? "on" : "off"}`);
