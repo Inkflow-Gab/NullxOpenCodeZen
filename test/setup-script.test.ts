@@ -5,9 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 const run = promisify(execFile);
-const repo = path.resolve(new URL("..", import.meta.url).pathname);
+const repo = fileURLToPath(new URL("..", import.meta.url));
 const script = path.join(repo, "scripts", "setup.sh");
 
 test("setup.sh passes bash syntax checking", async () => {
