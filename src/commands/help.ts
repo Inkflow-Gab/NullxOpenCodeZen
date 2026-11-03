@@ -4,6 +4,7 @@ import { gradient, paint, writeLine } from "../ui/terminal.js";
 import { VERSION } from "../version.js";
 
 export const COMMAND_HELP = [
+  ["setup", "All-in-one animated setup: command, PATH, config, and OpenCode", "nullx setup [--name <command>] [--force] [--channel v1|v2] [--skip-opencode]"],
   ["start", "Open the OpenCode TUI with a local session budget", "nullx start [opencode options]"],
   ["run", "Run one OpenCode prompt with a local run budget", "nullx run [opencode run options] \"prompt\""],
   ["install", "Detect or install a pinned official OpenCode CLI", "nullx install [--channel v1|v2] [--version x.y.z] [--force] [--repair] [--retries 0-5] [--dry-run]"],
@@ -41,6 +42,12 @@ export function showHelp(ctx: AppContext, topic?: string): void {
       writeLine(ctx, "Keys: channel, binary, model, timezone, history-limit, auto-install");
       writeLine(ctx, "Example: nullx config set binary /usr/local/bin/opencode");
     }
+    if (topic === "setup") {
+      writeLine(ctx, "Installs a launcher, updates PATH, writes config, and installs OpenCode in one animated run.");
+      writeLine(ctx, "If another program already owns `nullx`, setup installs `nullx-zen` instead of clobbering it.");
+      writeLine(ctx, "--name <command> chooses the command name; --force backs up and replaces a foreign command.");
+      writeLine(ctx, "From a fresh clone, run: bash scripts/setup.sh   (no sudo, works in proot Ubuntu)");
+    }
     if (topic === "install") {
       writeLine(ctx, "--repair forces a clean reinstall and removes stale staging artifacts.");
       writeLine(ctx, "--retries controls retry attempts after transient failures (0-5, default 2).");
@@ -60,7 +67,8 @@ export function showHelp(ctx: AppContext, topic?: string): void {
   }
   writeLine(ctx);
   writeLine(ctx, "Global options: --help, --version, --json (before local commands), --home <path>, --no-color, --no-animation");
-  writeLine(ctx, "Quick start: nullx install");
+  writeLine(ctx, "Quick start: nullx setup");
+  writeLine(ctx, "             nullx install");
   writeLine(ctx, "             nullx auth login");
   writeLine(ctx, "             nullx model set <provider/model>");
   writeLine(ctx, "             nullx start");

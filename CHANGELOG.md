@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **All-in-one setup.** `nullx setup` plus `scripts/setup.sh` and `scripts/setup.ps1` bootstrap Node 22+, dependencies, build, launcher, `PATH`, config, and OpenCode from a single copy-paste, with ASCII art, spinner, progress bar, and plain/NO_COLOR/CI fallbacks.
+- **Collision-safe launcher.** `npm link` `EEXIST` is now a solved case: setup detects a foreign `nullx` and installs `nullx-zen` instead, leaving the other program untouched. `--name` picks a name; `--force` backs up the foreign command before replacing it. Idempotent `PATH` updates in `~/.bashrc`/`~/.profile` or the Windows user `PATH`.
+- `doctor` reports command resolution and `PATH` shadowing.
+- New [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) covering `EEXIST`, shadowed commands, missing launchers, old Node, and proot specifics.
+- Launcher, progress, setup command, and bootstrap-script test coverage, including an end-to-end shell test proving a foreign `nullx` stays byte-identical.
+
 - Animated, colored README banner with static PNG fallback and regeneration script.
 - Step-by-step copy-paste setup docs for Ubuntu/Linux, Windows, and mobile proot Ubuntu.
 - Mobile proot guide and tests ensuring setup command blocks do not use `sudo`.

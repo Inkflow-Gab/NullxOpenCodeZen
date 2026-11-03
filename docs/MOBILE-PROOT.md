@@ -6,6 +6,34 @@ It is written as separate copy-paste blocks. The Ubuntu commands do **not** use 
 
 > Keep OpenCode open in another tmux window or terminal session while you use Nullx commands elsewhere.
 
+## 0. Fast path: one copy-paste inside Ubuntu
+
+Do section 1 first if you have not installed Ubuntu in proot yet. Once you are at an Ubuntu prompt, this single block does everything else — packages, Node 22, clone, build, launcher, `PATH`, and OpenCode — with a spinner and progress bar, and **no `sudo`**:
+
+```bash
+apt update && apt install -y curl git ca-certificates xz-utils && git clone https://github.com/Inkflow-Gab/NullxOpenCodeZen.git "$HOME/NullxOpenCodeZen" 2>/dev/null; cd "$HOME/NullxOpenCodeZen" && bash scripts/setup.sh
+```
+
+Already cloned:
+
+```bash
+bash scripts/setup.sh
+```
+
+Then apply the `PATH` change:
+
+```bash
+exec $SHELL
+```
+
+If setup reports that another program owns `nullx`, it installed `nullx-zen` instead. Use that name for every command below, or run:
+
+```bash
+bash scripts/setup.sh --name nullx --force
+```
+
+The rest of this document is the manual, step-by-step version.
+
 ## 1. Termux host setup
 
 Run these in Termux before entering Ubuntu.
@@ -263,6 +291,22 @@ tmux new -s nullx
 ```
 
 ## Troubleshooting
+
+### `npm error EEXIST` when running `npm link`
+
+Another program already installed a command called `nullx`. Check who owns it:
+
+```bash
+head -n 3 "$(command -v nullx)"
+```
+
+Run setup instead of `npm link`. It installs `nullx-zen` alongside the other tool:
+
+```bash
+bash scripts/setup.sh
+```
+
+Full details: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### `nullx` is not found
 

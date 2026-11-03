@@ -21,7 +21,8 @@ Nullx OpenCode Zen is an educational project for learning CLI design, cross-plat
 - 🧮 Enforce local daily launch budgets for one-shot runs and interactive sessions.
 - 🔒 Keep a private, prompt-free launch journal with timezone-aware rollover.
 - 🎯 Select a default `provider/model` and delegate authentication to OpenCode.
-- 🩺 Run environment-aware diagnostics, including proot/WSL hints and binary candidate reporting.
+- ⚡ Install everything with one animated `bash scripts/setup.sh` — no `sudo`, no name collisions.
+- 🩺 Run environment-aware diagnostics, including proot/WSL hints, command shadowing, and binary candidate reporting.
 - 🗡️ Ship a shadow-and-scythe mascot, animated README banner, and large/compact ASCII art.
 
 > [!IMPORTANT]
@@ -29,13 +30,72 @@ Nullx OpenCode Zen is an educational project for learning CLI design, cross-plat
 
 ## 🚀 Pick your setup
 
-| Platform | Guide |
-| --- | --- |
-| 📱 Android / Termux / proot Ubuntu | [Mobile proot guide](docs/MOBILE-PROOT.md) |
-| 🐧 Ubuntu / Linux desktop | [Ubuntu setup](#-ubuntu--linux-desktop) |
-| 🪟 Windows PowerShell | [Windows setup](#-windows-powershell) |
+| Platform | One command | Manual guide |
+| --- | --- | --- |
+| 📱 Android / Termux / proot Ubuntu | `bash scripts/setup.sh` | [Mobile proot guide](docs/MOBILE-PROOT.md) |
+| 🐧 Ubuntu / Linux desktop | `bash scripts/setup.sh` | [Ubuntu setup](#-ubuntu--linux-desktop) |
+| 🪟 Windows PowerShell | `pwsh scripts/setup.ps1` | [Windows setup](#-windows-powershell) |
 
-Each step below is its own copy-paste block. Run them in order.
+## ⚡ All-in-one setup (one copy-paste)
+
+Already inside Ubuntu — desktop, WSL, or proot on your phone? Paste this **one** block:
+
+```bash
+git clone https://github.com/Inkflow-Gab/NullxOpenCodeZen.git "$HOME/NullxOpenCodeZen" 2>/dev/null; cd "$HOME/NullxOpenCodeZen" && bash scripts/setup.sh
+```
+
+Already cloned? Then it is just:
+
+```bash
+bash scripts/setup.sh
+```
+
+Windows PowerShell:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts/setup.ps1
+```
+
+The script shows ASCII art, a spinner, and a live progress bar, then does all of this for you:
+
+| Step | What happens |
+| --- | --- |
+| 1 | Detect platform, architecture, and proot/Termux environment |
+| 2 | Clone or update the repository |
+| 3 | Install Node 22+ into your home directory — **no `sudo`** |
+| 4 | Install locked dependencies (`npm ci`) |
+| 5 | Build the CLI |
+| 6 | Install the launcher, update `PATH`, write config, and install OpenCode |
+
+```text
+[1/6] ████░░░░░░░░░░░░░░░░░░░░ ⠹ Ensuring Node 22+
+✔ [2/6] ████████░░░░░░░░░░░░░░░░ Preparing repository — cloned
+✔ [3/6] ████████████░░░░░░░░░░░░ Ensuring Node 22+ — node v22.22.3
+```
+
+### 🛡️ Name collisions are handled, never clobbered
+
+If another program already owns the `nullx` command, setup installs this project as **`nullx-zen`** and leaves the other tool untouched. No `EEXIST`, no `npm link --force`, no lost binaries.
+
+```text
+Notes
+  • Another program already owns "nullx", so this project installed "nullx-zen" instead. Both tools keep working.
+```
+
+Useful flags:
+
+```bash
+bash scripts/setup.sh --name nz            # pick your own command name
+bash scripts/setup.sh --force              # take over `nullx`, backing up the old one
+bash scripts/setup.sh --skip-opencode      # CLI only, install OpenCode later
+bash scripts/setup.sh --no-animation       # plain output for logs and CI
+```
+
+Hit `npm error EEXIST` from `npm link`? See [Troubleshooting](docs/TROUBLESHOOTING.md) — the fix is `bash scripts/setup.sh`.
+
+## 🧩 Manual setup, step by step
+
+Prefer to see every command? Each step below is its own copy-paste block. Run them in order.
 
 ## 📱 Mobile: Ubuntu in proot, no sudo
 
@@ -178,8 +238,13 @@ npm run build
 ### 22. Expose the `nullx` command
 
 ```bash
-npm link
+node dist/cli.js setup --skip-opencode
 ```
+
+This installs a launcher into `~/.local/bin` and updates `PATH`. If another program already owns `nullx`, it installs `nullx-zen` instead and prints the name it chose.
+
+> [!TIP]
+> `npm link` fails with `EEXIST` when another tool already provides `nullx`. Use `setup` instead — it never clobbers the other program. See [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ### 23. Verify Nullx
 
@@ -315,13 +380,21 @@ npm ci
 npm run build
 ```
 
-### 8. Link the command
+### 8. Install the command
 
 ```bash
-npm link
+node dist/cli.js setup --skip-opencode
 ```
 
-If linking is not writable, use the built entry point directly:
+Setup installs a launcher into `~/.local/bin`, updates `PATH` idempotently, and falls back to `nullx-zen` if another program already owns `nullx`.
+
+Open a new shell, or:
+
+```bash
+exec $SHELL
+```
+
+You can always use the built entry point directly:
 
 ```bash
 node dist/cli.js --help
@@ -409,11 +482,13 @@ npm ci
 npm run build
 ```
 
-### 9. Link the command
+### 9. Install the command
 
 ```powershell
-npm link
+node dist/cli.js setup --skip-opencode
 ```
+
+Setup installs a `.cmd` launcher under `%LOCALAPPDATA%\nullx-opencode-zen\bin` and adds it to your user `PATH`. Open a new PowerShell window afterwards.
 
 ### 10. Install OpenCode
 

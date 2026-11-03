@@ -5,6 +5,7 @@ import { budgetSnapshot } from "../core/budget.js";
 import { loadConfig } from "../core/config.js";
 import { inspectOpenCode } from "../core/detect.js";
 import { describeEnvironment, environmentLabel } from "../core/environment.js";
+import { findCommandConflict } from "../core/launcher.js";
 import { EXIT, errorMessage } from "../core/errors.js";
 import type { AppContext } from "../core/types.js";
 import { parseFlags, rejectPositionals } from "../utils/args.js";
@@ -24,6 +25,18 @@ export async function doctorCommand(ctx: AppContext, args: readonly string[], js
   checks.push({ name: "environment", status: "ok", detail: environmentLabel(environment) });
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   checks.push({ name: "node", status: nodeMajor >= 22 ? "ok" : "fail", detail: process.versions.node });
+  try {
+    const conflict = await findCommandConflict(ctx);
+    if (!conflict) {
+      checks.push({ name: "command", status: "warn", detail: "No `nullx` on PATH. Run nullx setup, or open a new shell." });
+    } else if (conflict.owner === "foreign") {
+      checks.push({ name: "command", status: "warn", detail: `${conflict.file} is another program. ${conflict.detail}. Run nullx setup to install nullx-zen alongside it.` });
+    } else {
+      checks.push({ name: "command", status: "ok", detail: conflict.file });
+    }
+  } catch (error) {
+    checks.push({ name: "command", status: "warn", detail: errorMessage(error) });
+  }
   try {
     const config = await loadConfig(ctx);
     checks.push({ name: "config", status: "ok", detail: ctx.paths.configFile });
