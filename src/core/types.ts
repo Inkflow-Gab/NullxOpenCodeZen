@@ -78,6 +78,23 @@ export interface DetectedBinary extends BinaryCommand {
   channel: Channel | "unknown";
 }
 
+export interface DetectionCandidate {
+  file: string;
+  source: BinarySource;
+  status: "ok" | "error";
+  reason: string;
+  version?: string;
+  channel?: Channel | "unknown";
+  detail?: string;
+  selected?: boolean;
+}
+
+export interface DetectionReport {
+  selected: DetectedBinary | null;
+  candidates: DetectionCandidate[];
+  warnings: string[];
+}
+
 export interface InstallReceipt {
   version: 1;
   channel: Channel;

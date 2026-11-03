@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Animated, colored README banner with static PNG fallback and regeneration script.
+- Step-by-step copy-paste setup docs for Ubuntu/Linux, Windows, and mobile proot Ubuntu.
+- Mobile proot guide and tests ensuring setup command blocks do not use `sudo`.
+- TTY connection-preparation animation with violet/cyan gradients, plain fallbacks, `--no-animation`, and cursor cleanup.
+- Environment detection for Ubuntu, Termux-linked sessions, proot-like guests, WSL, and architecture hints.
+- `doctor --verbose` and JSON detection reports for binary candidates, stale receipts, and v1/v2 visibility.
+- Install progress reporting, transient retries, `--repair`, and stale staging cleanup.
+- `nullx mascot --large|--compact` plus gradient/NO_COLOR ASCII rendering.
+- CI push workflow now covers `arena/**` branches.
+
 ## 0.1.0 — 2026-11-03
 
 - Initial TypeScript/Node.js companion CLI for official OpenCode.

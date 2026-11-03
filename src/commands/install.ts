@@ -1,16 +1,19 @@
 import { loadConfig } from "../core/config.js";
 import { usage } from "../core/errors.js";
-import { installOpenCode } from "../core/install.js";
+import { installOpenCode, type InstallOptions } from "../core/install.js";
 import type { AppContext, Channel } from "../core/types.js";
-import { channelValue } from "../core/validation.js";
+import { channelValue, integerValue } from "../core/validation.js";
 import { parseFlags, rejectPositionals } from "../utils/args.js";
-import { writeJson, writeLine } from "../ui/terminal.js";
+import { withConnectionAnimation } from "../ui/connection-animation.js";
+import { gradient, writeJson, writeLine } from "../ui/terminal.js";
 
 export async function installCommand(ctx: AppContext, args: readonly string[], json: boolean): Promise<number> {
   const parsed = parseFlags(args, [
     { names: ["--channel"], takesValue: true },
     { names: ["--version"], takesValue: true },
     { names: ["--force"], takesValue: false },
+    { names: ["--repair"], takesValue: false },
+    { names: ["--retries"], takesValue: true },
     { names: ["--dry-run"], takesValue: false },
     { names: ["--json"], takesValue: false },
   ]);
@@ -19,13 +22,26 @@ export async function installCommand(ctx: AppContext, args: readonly string[], j
   const config = await loadConfig(ctx);
   const channelInput = parsed.values.get("--channel");
   const channel: Channel | undefined = channelInput === undefined ? undefined : channelValue(channelInput);
-  const result = await installOpenCode(ctx, config, {
+  const retriesInput = parsed.values.get("--retries");
+  const options: InstallOptions = {
     ...(channel ? { channel } : {}),
     ...(parsed.values.has("--version") ? { version: parsed.values.get("--version")! } : {}),
     force: parsed.flags.has("--force"),
+    repair: parsed.flags.has("--repair"),
     dryRun: parsed.flags.has("--dry-run"),
-  });
-  if (json || parsed.flags.has("--json")) { writeJson(ctx, result); return 0; }
+    ...(retriesInput === undefined ? {} : { retries: integerValue(/^\d+$/.test(retriesInput) ? Number(retriesInput) : Number.NaN, "--retries", 0, 5) }),
+  };
+  const useJson = json || parsed.flags.has("--json");
+  const result = useJson || options.dryRun
+    ? await installOpenCode(ctx, config, options)
+    : await withConnectionAnimation((phase) => installOpenCode(ctx, config, { ...options, progress: phase }), {
+      stream: ctx.stderr,
+      env: ctx.env,
+      title: "Preparing OpenCode for OpenCode Zen",
+      successMessage: "OpenCode runtime prepared",
+    });
+  if (useJson) { writeJson(ctx, result); return 0; }
+  writeLine(ctx, gradient(ctx, "Nullx OpenCode Zen · install"));
   if (result.status === "already-installed") {
     writeLine(ctx, `OpenCode ${result.binary.version} is already available (${result.binary.source}).`);
     writeLine(ctx, result.binary.file);
@@ -34,7 +50,7 @@ export async function installCommand(ctx: AppContext, args: readonly string[], j
     writeLine(ctx, `Target: ${result.plan.targetDirectory}`);
     writeLine(ctx, `Binary: ${result.plan.binaryPath}`);
   } else {
-    writeLine(ctx, `Installed OpenCode ${result.binary.version} (${result.receipt.channel}).`);
+    writeLine(ctx, `${options.repair ? "Repaired" : "Installed"} OpenCode ${result.binary.version} (${result.receipt.channel}).`);
     writeLine(ctx, result.receipt.binaryPath);
     writeLine(ctx, `SHA-512: ${result.receipt.integrity}`);
     if (ctx.env.NULLX_OPENCODE_BINARY || config.binaryPath) {

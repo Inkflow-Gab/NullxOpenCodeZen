@@ -5,6 +5,7 @@ import { runInherited } from "../core/process.js";
 import type { AppContext, LaunchKind, NullxConfig } from "../core/types.js";
 import { modelValue } from "../core/validation.js";
 import { hasModelFlag, isHelpOrVersion, modelFromArgs } from "../utils/args.js";
+import { withConnectionAnimation } from "../ui/connection-animation.js";
 
 export type InheritedRunner = typeof runInherited;
 
@@ -15,11 +16,14 @@ export async function launchCommand(
   args: readonly string[],
   runner: InheritedRunner = runInherited,
 ): Promise<number> {
-  const binary = await ensureOpenCode(ctx, config);
+  const helpOrVersion = isHelpOrVersion(args);
+  const binary = helpOrVersion
+    ? await ensureOpenCode(ctx, config)
+    : await withConnectionAnimation((phase) => ensureOpenCode(ctx, config, phase), { stream: ctx.stderr, env: ctx.env });
   const upstreamArgs = (forwarded: readonly string[]): string[] => kind === "run" ? ["run", ...forwarded] : [...forwarded];
   let forwarded = [...args];
   if (!hasModelFlag(forwarded) && config.defaultModel) forwarded = ["--model", config.defaultModel, ...forwarded];
-  if (isHelpOrVersion(args)) {
+  if (helpOrVersion) {
     return (await runner(binary.file, upstreamArgs(forwarded), { cwd: ctx.cwd, env: ctx.env })).exitCode;
   }
   const explicitModel = modelFromArgs(forwarded);

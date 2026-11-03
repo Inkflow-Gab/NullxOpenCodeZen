@@ -1,15 +1,15 @@
-import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { AppContext } from "../core/types.js";
 import { parseFlags, rejectPositionals } from "../utils/args.js";
-import { writeJson, writeLine } from "../ui/terminal.js";
+import { gradient, writeJson, writeLine } from "../ui/terminal.js";
+import { loadAscii, renderAscii } from "../ui/banner.js";
 import { PROJECT_NAME, UPSTREAM_REPOSITORY, VERSION } from "../version.js";
 
 export async function aboutCommand(ctx: AppContext): Promise<number> {
-  const ascii = await readFile(new URL("../../assets/mascot.txt", import.meta.url), "utf8").catch(() => "");
+  const ascii = await loadAscii("compact");
   const sprite = fileURLToPath(new URL("../../assets/nullx-scythe.png", import.meta.url));
-  writeLine(ctx, ascii.trimEnd());
-  writeLine(ctx, `${PROJECT_NAME} ${VERSION}`);
+  writeLine(ctx, renderAscii(ctx, ascii));
+  writeLine(ctx, gradient(ctx, `${PROJECT_NAME} ${VERSION}`));
   writeLine(ctx, "An educational, local-first companion for the official OpenCode CLI.");
   writeLine(ctx, "Managed installs, explicit model selection, daily launch budgets, and private launch metadata.");
   writeLine(ctx, `Upstream: ${UPSTREAM_REPOSITORY}`);

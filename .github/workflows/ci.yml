@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["arena/4f5b69e3-nullxopencodezen", "main"]
+    branches: ["arena/**", "main"]
   pull_request:
 
 permissions:

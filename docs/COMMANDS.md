@@ -8,9 +8,12 @@ Place global options before the command:
 nullx --json status
 nullx --home /tmp/nullx-test doctor
 nullx --no-color budget
+nullx --no-animation start
 nullx --version
 nullx help run
 ```
+
+`--no-animation` disables the TTY spinner/gradient animation. `NO_COLOR` or `--no-color` disables color. `NULLX_NO_ANIMATION=1` also disables animation. Non-TTY output uses plain progress lines.
 
 ## Installation
 
@@ -18,12 +21,16 @@ nullx help run
 nullx install
 nullx install --channel v2
 nullx install --version 1.19.5 --force
+nullx install --repair
+nullx install --retries 4
 nullx install --dry-run --json
 ```
 
 - `--channel`: `v1` or `v2`; defaults to the config channel.
 - `--version`: exact semver only; tags and ranges are rejected.
 - `--force`: reinstall the managed channel even when a matching binary exists.
+- `--repair`: force a clean reinstall and remove stale staging/previous artifacts for the target version.
+- `--retries`: transient retry attempts after the first try, from 0 to 5; default 2.
 - `--dry-run`: print the plan without downloading or writing an install.
 
 `start`, `run`, `auth`, `models`, and `stats` auto-install the configured channel when OpenCode is missing and `autoInstall` is enabled. Disable with `nullx config set auto-install false` or `NULLX_NO_AUTO_INSTALL=1`.
@@ -87,10 +94,16 @@ nullx config unset model
 ```bash
 nullx status --json
 nullx doctor --json
+nullx doctor --verbose
 nullx history --limit 50 --json
 nullx paths --json
 nullx about
+nullx mascot --large
+nullx mascot --compact
+nullx --no-color mascot --compact
 ```
+
+`doctor --verbose` lists inspected OpenCode candidates, their source, version/channel, selection reason, and probe errors. `doctor --json` includes environment metadata and the detection report.
 
 ## Exit codes
 
