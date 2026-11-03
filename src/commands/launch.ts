@@ -1,13 +1,18 @@
 import { budgetWarning, recordFinish, reserveLaunch } from "../core/budget.js";
+import { databaseEnv, resolveDatabase, type DatabaseDecision } from "../core/database.js";
 import { errorMessage } from "../core/errors.js";
 import { ensureOpenCode } from "../core/install.js";
 import { runInherited } from "../core/process.js";
-import type { AppContext, LaunchKind, NullxConfig } from "../core/types.js";
+import type { AppContext, Channel, LaunchKind, NullxConfig } from "../core/types.js";
 import { modelValue } from "../core/validation.js";
 import { hasModelFlag, isHelpOrVersion, modelFromArgs } from "../utils/args.js";
 import { withConnectionAnimation } from "../ui/connection-animation.js";
 
 export type InheritedRunner = typeof runInherited;
+
+function channelOf(version: string, fallback: Channel): Channel {
+  return Number(version.split(".")[0]) >= 2 ? "v2" : Number(version.split(".")[0]) === 1 ? "v1" : fallback;
+}
 
 export async function launchCommand(
   ctx: AppContext,
@@ -17,9 +22,31 @@ export async function launchCommand(
   runner: InheritedRunner = runInherited,
 ): Promise<number> {
   const helpOrVersion = isHelpOrVersion(args);
+  let decision: DatabaseDecision | undefined;
   const binary = helpOrVersion
     ? await ensureOpenCode(ctx, config)
-    : await withConnectionAnimation((phase) => ensureOpenCode(ctx, config, phase), { stream: ctx.stderr, env: ctx.env });
+    : await withConnectionAnimation(async (phase) => {
+        const resolved = await ensureOpenCode(ctx, config, phase);
+        // Preflight the schema so a v1 binary never dies on a v2 database.
+        phase("Checking the OpenCode database schema");
+        decision = await resolveDatabase(ctx, config, channelOf(resolved.version, config.channel));
+        if (decision.isolated) phase(`Using a separate ${channelOf(resolved.version, config.channel)} database`);
+        return resolved;
+      }, { stream: ctx.stderr, env: ctx.env });
+
+  if (decision && !helpOrVersion) {
+    if (decision.isolated) {
+      ctx.stderr.write(`note: ${decision.reason}\n`);
+      if (decision.suggestion) ctx.stderr.write(`      ${decision.suggestion}\n`);
+    }
+    if (!decision.compatible) {
+      ctx.stderr.write(`error: ${decision.reason}\n`);
+      if (decision.suggestion) ctx.stderr.write(`       ${decision.suggestion}\n`);
+      return 3;
+    }
+  }
+  const launchEnv = decision ? databaseEnv(ctx, decision) : ctx.env;
+
   const upstreamArgs = (forwarded: readonly string[]): string[] => kind === "run" ? ["run", ...forwarded] : [...forwarded];
   let forwarded = [...args];
   if (!hasModelFlag(forwarded) && config.defaultModel) forwarded = ["--model", config.defaultModel, ...forwarded];
@@ -35,7 +62,7 @@ export async function launchCommand(
   let exitCode = 127;
   let signal: NodeJS.Signals | null = null;
   try {
-    const result = await runner(binary.file, upstreamArgs(forwarded), { cwd: ctx.cwd, env: ctx.env });
+    const result = await runner(binary.file, upstreamArgs(forwarded), { cwd: ctx.cwd, env: launchEnv });
     exitCode = result.exitCode;
     signal = result.signal;
     return exitCode;

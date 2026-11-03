@@ -2,6 +2,7 @@ import os from "node:os";
 import { aboutCommand, pathsCommand } from "./commands/about.js";
 import { budgetCommand } from "./commands/budget.js";
 import { configCommand } from "./commands/config.js";
+import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { showHelp } from "./commands/help.js";
 import { historyCommand } from "./commands/history.js";
@@ -19,7 +20,7 @@ import { execute } from "./core/process.js";
 import type { AppContext } from "./core/types.js";
 import { VERSION } from "./version.js";
 
-const JSON_COMMANDS = new Set(["setup", "install", "doctor", "status", "budget", "model", "history", "config", "paths"]);
+const JSON_COMMANDS = new Set(["setup", "db", "install", "doctor", "status", "budget", "model", "history", "config", "paths"]);
 
 export async function main(argv: readonly string[], overrides: Partial<AppContext> = {}): Promise<number> {
   const args = [...argv];
@@ -66,6 +67,7 @@ export async function main(argv: readonly string[], overrides: Partial<AppContex
     if (json && !JSON_COMMANDS.has(command)) throw usage("--json is supported before local reporting commands, not OpenCode passthrough commands");
     switch (command) {
       case "setup": return await setupCommand(ctx, rest, json);
+      case "db": return await dbCommand(ctx, rest, json);
       case "install": return await installCommand(ctx, rest, json);
       case "doctor": return await doctorCommand(ctx, rest, json);
       case "status": return await statusCommand(ctx, rest, json);

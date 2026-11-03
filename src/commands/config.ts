@@ -2,7 +2,7 @@ import { initConfig, loadConfig, saveConfig } from "../core/config.js";
 import { resolveExplicitBinary } from "../core/detect.js";
 import { usage } from "../core/errors.js";
 import type { AppContext } from "../core/types.js";
-import { binaryPathValue, channelValue, integerValue, modelValue, parseBoolean, timezoneValue } from "../core/validation.js";
+import { binaryPathValue, channelValue, databaseModeValue, integerValue, modelValue, parseBoolean, timezoneValue } from "../core/validation.js";
 import { parseFlags, rejectPositionals } from "../utils/args.js";
 import { writeJson, writeLine } from "../ui/terminal.js";
 
@@ -39,6 +39,7 @@ export async function configCommand(ctx: AppContext, args: readonly string[], js
       case "timezone": config.timezone = timezoneValue(value); break;
       case "history-limit": config.historyLimit = integerValue(Number(value), "history-limit", 10, 100_000); break;
       case "auto-install": config.autoInstall = parseBoolean(value, "auto-install"); break;
+      case "database": config.database = databaseModeValue(value); break;
       default: throw usage(`Unknown config key: ${key}`);
     }
     await saveConfig(ctx, config);

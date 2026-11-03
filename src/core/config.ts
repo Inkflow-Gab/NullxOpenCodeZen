@@ -7,6 +7,7 @@ import {
   binaryPathValue,
   booleanValue,
   channelValue,
+  databaseModeValue,
   integerValue,
   isRecord,
   modelValue,
@@ -20,6 +21,7 @@ export function defaultConfig(): NullxConfig {
     binaryPath: null,
     defaultModel: null,
     autoInstall: true,
+    database: "auto",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     historyLimit: 1_000,
     budget: { runsPerDay: 30, sessionsPerDay: 10, warnAtPercent: 80 },
@@ -28,7 +30,7 @@ export function defaultConfig(): NullxConfig {
 
 export function validateConfig(value: unknown, platform: NodeJS.Platform, cwd: string): NullxConfig {
   if (!isRecord(value)) throw new AppError("CONFIG_INVALID", "Config must be a JSON object", EXIT.CONFIG);
-  assertOnlyKeys(value, ["version", "channel", "binaryPath", "defaultModel", "autoInstall", "timezone", "historyLimit", "budget"], "config");
+  assertOnlyKeys(value, ["version", "channel", "binaryPath", "defaultModel", "autoInstall", "database", "timezone", "historyLimit", "budget"], "config");
   if (value.version !== 1) throw new AppError("CONFIG_VERSION", "Only config version 1 is supported", EXIT.CONFIG);
   if (!isRecord(value.budget)) throw new AppError("CONFIG_INVALID", "budget must be an object", EXIT.CONFIG);
   assertOnlyKeys(value.budget, ["runsPerDay", "sessionsPerDay", "warnAtPercent"], "budget");
@@ -47,6 +49,8 @@ export function validateConfig(value: unknown, platform: NodeJS.Platform, cwd: s
     binaryPath: binary,
     defaultModel: model,
     autoInstall: booleanValue(value.autoInstall, "autoInstall"),
+    // Older configs predate this key; default to the safe behaviour.
+    database: value.database === undefined ? "auto" : databaseModeValue(value.database),
     timezone: timezoneValue(value.timezone),
     historyLimit: integerValue(value.historyLimit, "historyLimit", 10, 100_000),
     budget: {

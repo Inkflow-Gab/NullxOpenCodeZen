@@ -54,9 +54,9 @@ test("non-TTY output is plain and never claims a verified Zen connection", async
     return 42;
   }, { stream, env: { NO_COLOR: "1" }, environment });
   assert.equal(result, 42);
-  assert.match(stream.text, /Trying to connect to OpenCode Zen through OpenCode/);
-  assert.match(stream.text, /keep that session open/);
-  assert.match(stream.text, /\[ok\] OpenCode runtime ready/);
+  assert.match(stream.text, /Connecting to OpenCode Zen/);
+  assert.match(stream.text, /Keep OpenCode open in your other session/);
+  assert.match(stream.text, /\[ok\] OpenCode ready/);
   assert.doesNotMatch(stream.text, /\x1b/);
   assert.doesNotMatch(stream.text, /connected to OpenCode Zen/i);
 });

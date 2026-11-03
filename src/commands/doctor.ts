@@ -4,6 +4,7 @@ import path from "node:path";
 import { budgetSnapshot } from "../core/budget.js";
 import { loadConfig } from "../core/config.js";
 import { inspectOpenCode } from "../core/detect.js";
+import { resolveDatabase } from "../core/database.js";
 import { describeEnvironment, environmentLabel } from "../core/environment.js";
 import { findCommandConflict } from "../core/launcher.js";
 import { EXIT, errorMessage } from "../core/errors.js";
@@ -47,6 +48,21 @@ export async function doctorCommand(ctx: AppContext, args: readonly string[], js
         ? { name: "opencode", status: "ok", detail: `${binary.version} (${binary.source}) at ${binary.file}` }
         : { name: "opencode", status: "fail", detail: "Not found. Run nullx install." });
       for (const warning of detection.warnings) checks.push({ name: "opencode:warning", status: "warn", detail: warning });
+      if (binary) {
+        try {
+          const major = Number(binary.version.split(".")[0]);
+          const channel = major >= 2 ? "v2" : major === 1 ? "v1" : config.channel;
+          const decision = await resolveDatabase(ctx, config, channel);
+          checks.push({
+            name: "database",
+            status: decision.compatible ? (decision.isolated ? "warn" : "ok") : "fail",
+            detail: `${decision.reason} Using ${decision.effectiveFile}`,
+          });
+          if (decision.suggestion) checks.push({ name: "database:hint", status: "warn", detail: decision.suggestion });
+        } catch (error) {
+          checks.push({ name: "database", status: "warn", detail: errorMessage(error) });
+        }
+      }
     } catch (error) {
       checks.push({ name: "opencode", status: "fail", detail: errorMessage(error) });
     }

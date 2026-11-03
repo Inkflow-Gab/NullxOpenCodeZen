@@ -43,14 +43,15 @@ test("budget reset requires explicit confirmation", async () => {
 test("about includes the mascot and upstream attribution", async () => {
   const ctx = await context();
   assert.equal(await main(["about"], ctx), 0);
-  assert.match(ctx.out.text, /NULLX|N U L L X/);
+  assert.match(ctx.out.text, /Nullx OpenCode Zen/);
   assert.match(ctx.out.text, /anomalyco\/opencode/);
 });
 
 test("mascot command supports large, compact, and plain output", async () => {
   const ctx = await context();
   assert.equal(await main(["mascot", "--large"], ctx), 0);
-  assert.match(ctx.out.text, /OPENCODE/);
+  // The figure is art; the stylised wordmark below it carries the name.
+  assert.match(ctx.out.text, /_   _/);
   ctx.out.text = "";
   assert.equal(await main(["--no-color", "mascot", "--compact"], ctx), 0);
   assert.doesNotMatch(ctx.out.text, /\x1b/);

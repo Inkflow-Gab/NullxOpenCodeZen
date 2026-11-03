@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -29,6 +29,16 @@ test("setup.sh never uses sudo and documents its options", async () => {
 test("setup.sh keeps a foreign nullx and installs nullx-zen beside it", async () => {
   if (process.platform === "win32") return;
   const home = await mkdtemp(path.join(os.tmpdir(), "nullx-sh-test-"));
+
+  // Run against a throwaway copy of the repo. setup.sh runs `npm ci`, which
+  // deletes node_modules; running it in the checkout would race the other
+  // test files that Node runs in parallel.
+  const work = path.join(home, "repo");
+  await mkdir(work, { recursive: true });
+  for (const entry of ["package.json", "package-lock.json", "tsconfig.json", "src", "scripts", "assets", "schema"]) {
+    await cp(path.join(repo, entry), path.join(work, entry), { recursive: true });
+  }
+
   const bin = path.join(home, ".local", "bin");
   await mkdir(bin, { recursive: true });
   const foreign = path.join(bin, "nullx");
@@ -37,9 +47,14 @@ test("setup.sh keeps a foreign nullx and installs nullx-zen beside it", async ()
   await chmod(foreign, 0o755);
 
   const { stdout, stderr } = await run("bash", [script, "--skip-opencode", "--no-animation", "--no-color"], {
-    cwd: repo,
-    env: { ...process.env, HOME: home, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, NULLX_HOME: path.join(home, "state") },
-    timeout: 240_000,
+    cwd: work,
+    env: {
+      ...process.env,
+      HOME: home,
+      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      NULLX_HOME: path.join(home, "state"),
+    },
+    timeout: 300_000,
   });
   const output = stdout + stderr;
   assert.match(output, /Setup finished/);

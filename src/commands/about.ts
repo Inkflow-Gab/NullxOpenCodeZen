@@ -7,8 +7,10 @@ import { PROJECT_NAME, UPSTREAM_REPOSITORY, VERSION } from "../version.js";
 
 export async function aboutCommand(ctx: AppContext): Promise<number> {
   const ascii = await loadAscii("compact");
+  const wordmark = await loadAscii("wordmark");
   const sprite = fileURLToPath(new URL("../../assets/nullx-scythe.png", import.meta.url));
   writeLine(ctx, renderAscii(ctx, ascii));
+  writeLine(ctx, renderAscii(ctx, wordmark));
   writeLine(ctx, gradient(ctx, `${PROJECT_NAME} ${VERSION}`));
   writeLine(ctx, "An educational, local-first companion for the official OpenCode CLI.");
   writeLine(ctx, "Managed installs, explicit model selection, daily launch budgets, and private launch metadata.");

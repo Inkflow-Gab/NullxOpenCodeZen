@@ -1,6 +1,6 @@
 import path from "node:path";
 import { AppError, EXIT } from "./errors.js";
-import type { Channel } from "./types.js";
+import type { Channel, DatabaseMode } from "./types.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -38,6 +38,13 @@ export function integerValue(value: unknown, label: string, min: number, max: nu
 export function channelValue(value: unknown): Channel {
   if (value !== "v1" && value !== "v2") {
     throw new AppError("CONFIG_INVALID", "channel must be v1 or v2", EXIT.CONFIG);
+  }
+  return value;
+}
+
+export function databaseModeValue(value: unknown): DatabaseMode {
+  if (value !== "auto" && value !== "shared" && value !== "channel") {
+    throw new AppError("CONFIG_INVALID", "database must be auto, shared, or channel", EXIT.CONFIG);
   }
   return value;
 }
