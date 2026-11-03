@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Inkflow-Gab/NullxOpenCodeZen/schema/config.schema.json",
+  "title": "Nullx OpenCode Zen configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "channel", "binaryPath", "defaultModel", "autoInstall", "timezone", "historyLimit", "budget"],
+  "properties": {
+    "version": { "const": 1 },
+    "channel": { "enum": ["v1", "v2"] },
+    "binaryPath": { "type": ["string", "null"], "minLength": 1 },
+    "defaultModel": { "type": ["string", "null"], "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*/[a-zA-Z0-9][a-zA-Z0-9._:/-]*$" },
+    "autoInstall": { "type": "boolean" },
+    "timezone": { "type": "string", "minLength": 1, "description": "IANA timezone, for example Asia/Manila or UTC" },
+    "historyLimit": { "type": "integer", "minimum": 10, "maximum": 100000 },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runsPerDay", "sessionsPerDay", "warnAtPercent"],
+      "properties": {
+        "runsPerDay": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000 },
+        "sessionsPerDay": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000 },
+        "warnAtPercent": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    }
+  }
+}

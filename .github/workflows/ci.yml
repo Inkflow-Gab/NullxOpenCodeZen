@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["arena/4f5b69e3-nullxopencodezen", "main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+        env:
+          npm_config_ignore_scripts: true
+      - run: npm run check
+      - run: npm run build
+      - run: node dist/cli.js --version
+      - run: node dist/cli.js --json paths
+      - run: npm pack --dry-run
