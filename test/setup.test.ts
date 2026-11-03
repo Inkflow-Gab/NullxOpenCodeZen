@@ -59,6 +59,7 @@ test("nullx setup --json reports the fallback command when nullx is taken", asyn
   };
   assert.equal(result.ok, true);
   assert.equal(result.command, "nullx-zen");
+  assert.ok(result.launcher.file.startsWith(ctx.root), `launcher must stay inside the temp root: ${result.launcher.file}`);
   assert.match(await readFile(foreign, "utf8"), /fcc/);
   assert.match(await readFile(result.launcher.file, "utf8"), new RegExp(LAUNCHER_MARKER));
   assert.ok(result.warnings.some((warning) => warning.includes("already owns")));

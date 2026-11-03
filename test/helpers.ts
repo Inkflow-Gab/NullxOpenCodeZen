@@ -20,7 +20,15 @@ export async function temporaryHome(): Promise<string> {
 
 export async function context(home?: string, now = () => new Date("2026-11-03T04:00:00.000Z")): Promise<AppContext & { out: MemoryStream; err: MemoryStream; root: string }> {
   const root = home ?? await temporaryHome();
-  const env: NodeJS.ProcessEnv = { NULLX_HOME: root, NO_COLOR: "1", NULLX_NO_AUTO_INSTALL: "1", PATH: "" };
+  const env: NodeJS.ProcessEnv = {
+    NULLX_HOME: root,
+    NO_COLOR: "1",
+    NULLX_NO_AUTO_INSTALL: "1",
+    PATH: "",
+    // main() merges process.env, so pin LOCALAPPDATA inside the temp root.
+    // Otherwise Windows tests would resolve the real user profile and write there.
+    LOCALAPPDATA: path.join(root, "AppData", "Local"),
+  };
   const out = new MemoryStream();
   const err = new MemoryStream();
   return {
