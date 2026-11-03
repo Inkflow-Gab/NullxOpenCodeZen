@@ -11,6 +11,7 @@
     "binaryPath": { "type": ["string", "null"], "minLength": 1 },
     "defaultModel": { "type": ["string", "null"], "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*/[a-zA-Z0-9][a-zA-Z0-9._:/-]*$" },
     "autoInstall": { "type": "boolean" },
+    "database": { "enum": ["auto", "shared", "channel"], "default": "auto", "description": "auto isolates a channel-specific database only when the shared OpenCode database has an incompatible v1/v2 schema" },
     "timezone": { "type": "string", "minLength": 1, "description": "IANA timezone, for example Asia/Manila or UTC" },
     "historyLimit": { "type": "integer", "minimum": 10, "maximum": 100000 },
     "budget": {

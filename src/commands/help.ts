@@ -4,6 +4,7 @@ import { gradient, paint, writeLine } from "../ui/terminal.js";
 import { VERSION } from "../version.js";
 
 export const COMMAND_HELP = [
+  ["db", "Explain the OpenCode v1/v2 database schema and isolation", "nullx db [--json]"],
   ["setup", "All-in-one animated setup: command, PATH, config, and OpenCode", "nullx setup [--name <command>] [--force] [--channel v1|v2] [--skip-opencode]"],
   ["start", "Open the OpenCode TUI with a local session budget", "nullx start [opencode options]"],
   ["run", "Run one OpenCode prompt with a local run budget", "nullx run [opencode run options] \"prompt\""],
@@ -41,6 +42,12 @@ export function showHelp(ctx: AppContext, topic?: string): void {
     if (topic === "config") {
       writeLine(ctx, "Keys: channel, binary, model, timezone, history-limit, auto-install");
       writeLine(ctx, "Example: nullx config set binary /usr/local/bin/opencode");
+    }
+    if (topic === "db") {
+      writeLine(ctx, "OpenCode v1 uses a `session` table; v2 renames it to `session_v2`.");
+      writeLine(ctx, "A v1 binary opening a v2 database fails with: Database is not empty and has no session table");
+      writeLine(ctx, "Nullx inspects the schema read-only and isolates a channel database when needed.");
+      writeLine(ctx, "Modes: nullx config set database auto|shared|channel");
     }
     if (topic === "setup") {
       writeLine(ctx, "Installs a launcher, updates PATH, writes config, and installs OpenCode in one animated run.");

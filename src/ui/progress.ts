@@ -1,12 +1,6 @@
 import type { Writable } from "node:stream";
-import { animationEnabled, blend, colorMode } from "./connection-animation.js";
+import { LiveLine, tint } from "./live-line.js";
 
-type TtyStream = Writable & { isTTY?: boolean; columns?: number };
-
-const HIDE = "\x1b[?25l";
-const SHOW = "\x1b[?25h";
-const CLEAR = "\x1b[2K\r";
-const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 export interface StepOutcome<T> {
   value: T;
@@ -37,47 +31,49 @@ export function progressBar(done: number, total: number, width: number, colored:
  * set, in CI, or when animation is disabled.
  */
 export class SetupProgress {
-  private readonly stream: TtyStream;
-  private readonly env: NodeJS.ProcessEnv;
+  private readonly live: LiveLine;
   private readonly total: number;
   private readonly title: string;
-  private readonly intervalMs: number;
   private readonly now: () => number;
-  private readonly interactive: boolean;
-  private readonly colors: ReturnType<typeof colorMode>;
   private readonly startedAt: number;
   private index = 0;
-  private frame = 0;
   private label = "";
   private detail = "";
-  private timer: NodeJS.Timeout | undefined;
   private closed = false;
-  private readonly silent: boolean;
-  private queue: Promise<void> = Promise.resolve();
 
   constructor(options: ProgressOptions) {
-    this.silent = options.silent === true;
-    this.stream = (options.stream ?? process.stderr) as TtyStream;
-    this.env = options.env ?? process.env;
+    this.live = new LiveLine({
+      ...(options.stream ? { stream: options.stream } : {}),
+      ...(options.env ? { env: options.env } : {}),
+      ...(options.intervalMs !== undefined ? { intervalMs: options.intervalMs } : {}),
+      ...(options.plain !== undefined ? { plain: options.plain } : {}),
+      ...(options.silent !== undefined ? { silent: options.silent } : {}),
+    });
     this.total = Math.max(1, options.total);
     this.title = options.title ?? "Nullx OpenCode Zen setup";
-    this.intervalMs = Math.max(60, options.intervalMs ?? 90);
     this.now = options.now ?? (() => Date.now());
-    const tty = this.stream.isTTY === true;
-    this.interactive = animationEnabled(this.env, tty, options.plain);
-    this.colors = colorMode(this.env, tty);
     this.startedAt = this.now();
+  }
+
+  columns(): number {
+    return this.live.width();
   }
 
   async banner(ascii: string): Promise<void> {
     if (ascii.trim().length > 0) {
-      const rendered = this.colors === "none"
-        ? ascii
-        : ascii.split("\n").map((line, index) => blend(line, this.colors, index)).join("\n");
-      this.write(`${rendered}\n`);
+      const width = this.live.width();
+      // Skip art that cannot fit rather than letting it wrap into noise.
+      const fits = ascii.split("\n").every((line) => line.length <= width);
+      if (fits) {
+        const colors = this.live.colorMode;
+        const rendered = colors === "none"
+          ? ascii
+          : ascii.split("\n").map((line, index) => tint(line, colors, index)).join("\n");
+        for (const line of rendered.split("\n")) await this.live.line(line);
+      }
     }
-    this.write(`${blend(this.title, this.colors)}\n\n`);
-    await this.drain();
+    await this.live.line(tint(this.title, this.live.colorMode, 1));
+    await this.live.line();
   }
 
   async step<T>(label: string, task: (detail: (message: string) => void) => Promise<StepOutcome<T> | T>): Promise<T> {
@@ -88,79 +84,72 @@ export class SetupProgress {
     const began = this.now();
     const prefix = `[${this.index}/${this.total}]`;
 
-    if (!this.interactive) {
-      this.write(`${prefix} ${label}\n`);
-      try {
-        const outcome = await task((message) => this.write(`      ${message}\n`));
-        const value = this.unwrap(outcome);
-        this.write(`      ok ${label} (${this.elapsed(began)})${value.note ? ` — ${value.note}` : ""}\n`);
-        await this.drain();
-        return value.value;
-      } catch (error) {
-        this.write(`      FAILED ${label}: ${error instanceof Error ? error.message : String(error)}\n`);
-        await this.drain();
-        throw error;
-      }
-    }
+    if (!this.live.isInteractive) await this.live.line(`${prefix} ${label}`);
+    else this.live.begin(this.status());
 
-    this.write(HIDE);
-    this.render();
-    this.timer = setInterval(() => this.render(), this.intervalMs);
-    this.timer.unref();
     try {
       const outcome = await task((message) => {
         this.detail = message;
-        this.render();
+        if (this.live.isInteractive) this.live.update(this.status());
+        // In plain mode the live frame is absent, so emit details as sub-lines.
+        else void this.live.line(`      ${message}`);
       });
       const value = this.unwrap(outcome);
-      this.stopTimer();
-      const tick = blend("✔", this.colors, this.index);
-      this.write(`${CLEAR}${tick} ${prefix} ${label} (${this.elapsed(began)})${value.note ? ` — ${value.note}` : ""}\n`);
-      await this.drain();
+      const note = value.note ? ` — ${value.note}` : "";
+      const summary = `${prefix} ${label} (${this.elapsed(began)})${note}`;
+      await this.live.done(this.live.isInteractive
+        ? `${tint("✔", this.live.colorMode, this.index)} ${summary}`
+        : `  ok ${summary}`);
       return value.value;
     } catch (error) {
-      this.stopTimer();
-      const cross = `\x1b[31m✗\x1b[0m`;
-      this.write(`${CLEAR}${cross} ${prefix} ${label}: ${error instanceof Error ? error.message : String(error)}\n`);
-      await this.drain();
+      const message = error instanceof Error ? error.message : String(error);
+      await this.live.done(this.live.isInteractive
+        ? `\x1b[31m✗ ${prefix} ${label}: ${message}\x1b[0m`
+        : `  FAILED ${prefix} ${label}: ${message}`);
       throw error;
-    } finally {
-      this.stopTimer();
-      this.write(SHOW);
     }
   }
 
   async skip(label: string, reason: string): Promise<void> {
     this.index += 1;
-    const prefix = `[${this.index}/${this.total}]`;
-    this.write(`${blend("•", this.colors, this.index)} ${prefix} ${label} — skipped (${reason})\n`);
-    await this.drain();
+    await this.live.done(`• [${this.index}/${this.total}] ${label} — skipped (${reason})`);
   }
 
   async line(text = ""): Promise<void> {
-    this.write(`${text}\n`);
-    await this.drain();
+    await this.live.line(text);
+  }
+
+  /** Release the cursor after any trailing notes have been printed. */
+  async close(): Promise<void> {
+    await this.live.close();
   }
 
   async finish(summary: readonly string[]): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.stopTimer();
-    const width = this.interactive ? 28 : 20;
-    this.write(`\n${blend(progressBar(this.total, this.total, width, this.colors !== "none"), this.colors)} 100%\n`);
-    this.write(`${blend("Setup complete", this.colors)} in ${this.elapsed(this.startedAt)}\n`);
-    for (const item of summary) this.write(`  ${item}\n`);
-    if (this.interactive) this.write(SHOW);
-    await this.drain();
+    const width = Math.max(8, Math.min(24, this.live.width() - 14));
+    const colored = this.live.colorMode !== "none";
+    await this.live.line();
+    await this.live.line(`${tint(progressBar(this.total, this.total, width, colored), this.live.colorMode, 3)} 100%`);
+    await this.live.line(`${tint("Setup complete", this.live.colorMode, 2)} in ${this.elapsed(this.startedAt)}`);
+    for (const item of summary) await this.live.line(item.length > 0 ? `  ${item}` : "");
+    await this.live.close();
   }
 
   async abort(message: string): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.stopTimer();
-    this.write(`\n${blend("Setup stopped", this.colors)}: ${message}\n`);
-    if (this.interactive) this.write(SHOW);
-    await this.drain();
+    await this.live.line();
+    await this.live.line(`${tint("Setup stopped", this.live.colorMode)}: ${message}`);
+    await this.live.close();
+  }
+
+  private status(): string {
+    const colored = this.live.colorMode !== "none";
+    const width = Math.max(6, Math.min(16, this.live.width() - 44));
+    const bar = progressBar(this.index - 1, this.total, width, colored);
+    const suffix = this.detail ? ` · ${this.detail}` : "";
+    return `[${this.index}/${this.total}] ${bar} ${this.label}${suffix}`;
   }
 
   private unwrap<T>(outcome: StepOutcome<T> | T): StepOutcome<T> {
@@ -171,41 +160,5 @@ export class SetupProgress {
   private elapsed(since: number): string {
     const ms = Math.max(0, this.now() - since);
     return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
-  }
-
-  private stopTimer(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-  }
-
-  private render(): void {
-    if (!this.interactive || this.closed) return;
-    const spinner = FRAMES[this.frame % FRAMES.length] ?? FRAMES[0]!;
-    this.frame += 1;
-    const columns = Math.max(40, this.stream.columns ?? 80);
-    const width = Math.max(8, Math.min(24, columns - 46));
-    const bar = progressBar(this.index - 1, this.total, width, true);
-    const suffix = this.detail ? ` · ${this.detail}` : "";
-    const text = `${spinner} [${this.index}/${this.total}] ${blend(bar, this.colors, this.frame)} ${this.label}${suffix}`;
-    this.write(CLEAR + blend(text, this.colors, this.frame).slice(0, Math.max(60, columns * 12)));
-  }
-
-  private async drain(): Promise<void> {
-    await this.queue;
-  }
-
-  private write(text: string): void {
-    if (this.silent) return;
-    this.queue = this.queue
-      .then(() => new Promise<void>((resolve) => {
-        try {
-          this.stream.write(text, () => resolve());
-        } catch {
-          resolve();
-        }
-      }))
-      .catch(() => undefined);
   }
 }

@@ -29,7 +29,7 @@ test("setup progress prints ordered plain steps without ANSI when not a TTY", as
   });
   await progress.finish(["done"]);
   assert.match(stream.text, /\[1\/2\] First/);
-  assert.match(stream.text, /ok First .*— one/);
+  assert.match(stream.text, /ok \[1\/2\] First .*— one/);
   assert.match(stream.text, /working/);
   assert.match(stream.text, /Setup complete/);
   assert.doesNotMatch(stream.text, /\x1b/);

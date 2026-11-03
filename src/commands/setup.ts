@@ -1,6 +1,6 @@
-import { loadAscii } from "../ui/banner.js";
+import { loadFittingAscii } from "../ui/banner.js";
 import { SetupProgress } from "../ui/progress.js";
-import { gradient, writeJson, writeLine } from "../ui/terminal.js";
+import { gradient, writeJson } from "../ui/terminal.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { inspectOpenCode, readReceipt } from "../core/detect.js";
 import { describeEnvironment, environmentLabel } from "../core/environment.js";
@@ -53,7 +53,7 @@ export async function setupCommand(ctx: AppContext, args: readonly string[], jso
   });
 
   const warnings: string[] = [];
-  if (!useJson) await progress.banner(await loadAscii("compact"));
+  if (!useJson) await progress.banner(await loadFittingAscii(progress.columns()));
 
   try {
     const environment = await progress.step("Inspecting the environment", async () => {
@@ -163,16 +163,19 @@ export async function setupCommand(ctx: AppContext, args: readonly string[], jso
       "Next steps:",
       ...nextSteps.map((step) => `  ${step}`),
     ]);
+    // Route trailing notes through the width-aware renderer so long paths
+    // cannot wrap and scroll a narrow phone terminal.
     if (warnings.length) {
-      writeLine(ctx);
-      writeLine(ctx, gradient(ctx, "Notes"));
-      for (const warning of warnings) writeLine(ctx, `  • ${warning}`);
+      await progress.line();
+      await progress.line(gradient(ctx, "Notes"));
+      for (const warning of warnings) await progress.line(`  • ${warning}`);
     }
     if (launcher.name !== "nullx") {
-      writeLine(ctx);
-      writeLine(ctx, `Use "${launcher.name}" for this project. The other "nullx" program is untouched.`);
-      writeLine(ctx, `To take over the name later: node dist/cli.js setup --name nullx --force`);
+      await progress.line();
+      await progress.line(`Use "${launcher.name}" for this project. The other "nullx" program is untouched.`);
+      await progress.line(`To take over the name later: node dist/cli.js setup --name nullx --force`);
     }
+    await progress.close();
     return 0;
   } catch (error) {
     await progress.abort("see the error above; fix it and rerun setup");

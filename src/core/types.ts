@@ -3,6 +3,7 @@ import type { Writable } from "node:stream";
 export type Channel = "v1" | "v2";
 export type LaunchKind = "run" | "session";
 export type BinarySource = "environment" | "config" | "managed" | "path";
+export type DatabaseMode = "auto" | "shared" | "channel";
 
 export interface BudgetConfig {
   /** null means no local limit; zero blocks launches. */
@@ -17,6 +18,8 @@ export interface NullxConfig {
   binaryPath: string | null;
   defaultModel: string | null;
   autoInstall: boolean;
+  /** How to handle the OpenCode v1/v2 shared-database schema split. */
+  database: DatabaseMode;
   timezone: string;
   historyLimit: number;
   budget: BudgetConfig;

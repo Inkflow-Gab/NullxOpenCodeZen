@@ -4,6 +4,7 @@
   "binaryPath": null,
   "defaultModel": null,
   "autoInstall": true,
+  "database": "auto",
   "timezone": "Asia/Manila",
   "historyLimit": 1000,
   "budget": {

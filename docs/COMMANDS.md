@@ -15,6 +15,32 @@ nullx help run
 
 `--no-animation` disables the TTY spinner/gradient animation. `NO_COLOR` or `--no-color` disables color. `NULLX_NO_ANIMATION=1` also disables animation. Non-TTY output uses plain progress lines.
 
+## Database
+
+```bash
+nullx db
+nullx db --json
+nullx config set database auto
+nullx config set database shared
+nullx config set database channel
+```
+
+OpenCode v1 keeps sessions in a `session` table; v2 renames it to `session_v2`. Both default to the same `opencode.db`, so a v1 binary opening a v2 database exits with `Database is not empty and has no session table`.
+
+`nullx db` reports the shared database path, size, detected schema, session tables, and which file the next launch will use. Inspection is **read-only** — it never migrates, rewrites, or deletes an OpenCode database.
+
+Modes (`config.database`, default `auto`):
+
+- `auto` — use the shared database when compatible; otherwise set `OPENCODE_DB` to `opencode-nullx-<channel>.db` for Nullx launches only.
+- `shared` — always use the shared file. On a generation mismatch the launch is refused with exit `3` and a suggested fix, rather than crashing inside OpenCode.
+- `channel` — always use a dedicated per-channel database.
+
+To use your existing sessions directly instead of isolating, match the channel to the database:
+
+```bash
+nullx install --channel v2
+```
+
 ## Setup
 
 ```bash

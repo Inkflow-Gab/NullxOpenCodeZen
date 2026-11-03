@@ -1,5 +1,81 @@
 # Troubleshooting
 
+## `Database is not empty and has no session table`
+
+OpenCode **v1** stores sessions in a table named `session`. OpenCode **v2** renames it to `session_v2`. Both generations default to the same file, `~/.local/share/opencode/opencode.db`, so a v1 binary opening a database that v2 already migrated aborts with this message.
+
+Your database is **not corrupt** and your sessions are still there.
+
+Diagnose it:
+
+```bash
+nullx db
+```
+
+Nullx already handles this automatically: in the default `auto` mode it detects the mismatch and gives its channel a separate database, leaving yours untouched. If you are still seeing the error, you are probably running `opencode` directly rather than through Nullx.
+
+### Option 1 — match the channel to your database (keeps your sessions)
+
+If `nullx db` reports a **v2 schema**:
+
+```bash
+nullx install --channel v2
+```
+
+```bash
+nullx start
+```
+
+### Option 2 — let Nullx isolate its own database (default)
+
+```bash
+nullx config set database auto
+```
+
+```bash
+nullx start
+```
+
+Nullx sets `OPENCODE_DB` to `opencode-nullx-v1.db` for its own launches. Sessions live separately per channel; nothing is deleted.
+
+### Option 3 — force a dedicated database permanently
+
+```bash
+nullx config set database channel
+```
+
+### Check which file is in use
+
+```bash
+nullx db --json
+```
+
+> Avoid deleting `opencode.db` to "fix" this. That destroys your session history and is never necessary.
+
+## Ugly, scrolling, or duplicated animation output
+
+Nullx redraws a single status line and truncates it to your terminal width. If output still looks wrong, your terminal may be reporting an incorrect size.
+
+Set the width explicitly:
+
+```bash
+stty cols 40
+```
+
+Turn animation off:
+
+```bash
+nullx --no-animation start
+```
+
+Turn color off too:
+
+```bash
+nullx --no-color --no-animation start
+```
+
+Plain output is used automatically when stdout is not a TTY, or when `NO_COLOR`, `CI`, or `TERM=dumb` is set.
+
 ## `npm error EEXIST: file already exists` on `npm link`
 
 Another program already installed a command called `nullx`. Nullx OpenCode Zen will not overwrite it.
